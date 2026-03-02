@@ -22,7 +22,7 @@ The code generation system follows a consistent structure across all subprojects
 
 The Python script used to generate a subproject's files is always located in the subproject's directory and named:
 
-```
+```text
 generate_<thing>.py
 ```
 
@@ -34,7 +34,7 @@ Where `<thing>` is the name of what you're generating.
 
 Templates are located under:
 
-```
+```text
 subproject/src/generate/main
 ```
 
@@ -42,8 +42,7 @@ subproject/src/generate/main
 
 Generated files are located under:
 
-
-```
+```text
 subproject/src/generated/main
 ```
 
@@ -51,13 +50,13 @@ subproject/src/generated/main
 
 For C++, the hierarchy should be symmetrical. If a generated header is located at:
 
-```
+```text
 subproject/src/generated/main/native/include/frc/header.h
 ```
 
 The template to generate it should be at:
 
-```
+```text
 subproject/src/generate/main/native/include/frc/template.h.jinja
 ```
 
@@ -75,12 +74,12 @@ For Java:
 **Example:**
 
 A Jinja template at:
-```
+```text
 subproject/src/main/java/template.java.jinja
 ```
 
 With the package `edu.wpi.first.wpilibj` would generate files at:
-```
+```text
 subproject/src/generated/main/java/edu/wpi/first/wpilibj
 ```
 
