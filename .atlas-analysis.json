@@ -1,0 +1,202 @@
+{
+  "projectType": "framework",
+  "projectName": "WPILib",
+  "projectDescription": "Official robotics framework for FIRST Robotics Competition providing HAL, WPILibJ, and WPILibC libraries for roboRIO robot programming",
+  "theme": "aspen",
+  "primaryColor": "#0066b3",
+  "lightColor": null,
+  "darkColor": null,
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Getting Started",
+            "pages": [
+              "introduction",
+              "installation",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/architecture",
+              "concepts/hardware-abstraction-layer",
+              "concepts/command-based-programming",
+              "concepts/robot-lifecycle"
+            ]
+          },
+          {
+            "group": "Programming Guide",
+            "pages": [
+              "guides/java-setup",
+              "guides/cpp-setup",
+              "guides/basic-robot-program",
+              "guides/motor-control",
+              "guides/sensors",
+              "guides/pneumatics",
+              "guides/vision"
+            ]
+          },
+          {
+            "group": "Simulation",
+            "pages": [
+              "simulation/overview",
+              "simulation/running-examples",
+              "simulation/custom-extensions",
+              "simulation/gui-tools"
+            ]
+          },
+          {
+            "group": "Advanced Topics",
+            "pages": [
+              "advanced/state-space-control",
+              "advanced/kinematics-odometry",
+              "advanced/trajectory-following",
+              "advanced/networktables",
+              "advanced/vendor-dependencies"
+            ]
+          },
+          {
+            "group": "Tools",
+            "pages": [
+              "tools/glass",
+              "tools/sysid",
+              "tools/outline-viewer",
+              "tools/shuffleboard"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Core Libraries",
+            "pages": [
+              "api/wpilibj/overview",
+              "api/wpilibc/overview",
+              "api/hal/overview"
+            ]
+          },
+          {
+            "group": "Math & Utilities",
+            "pages": [
+              "api/wpimath/overview",
+              "api/wpiutil/overview",
+              "api/wpiunits/overview"
+            ]
+          },
+          {
+            "group": "Networking & Vision",
+            "pages": [
+              "api/ntcore/overview",
+              "api/wpinet/overview",
+              "api/cscore/overview",
+              "api/cameraserver/overview",
+              "api/apriltag/overview"
+            ]
+          },
+          {
+            "group": "Command Framework",
+            "pages": [
+              "api/wpilibnewcommands/overview"
+            ]
+          },
+          {
+            "group": "Simulation",
+            "pages": [
+              "api/simulation/overview"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Examples",
+        "groups": [
+          {
+            "group": "Basic Examples",
+            "pages": [
+              "examples/getting-started",
+              "examples/motor-control",
+              "examples/sensors",
+              "examples/drivetrain"
+            ]
+          },
+          {
+            "group": "Advanced Examples",
+            "pages": [
+              "examples/command-based",
+              "examples/state-space",
+              "examples/trajectory",
+              "examples/vision"
+            ]
+          },
+          {
+            "group": "Simulation Examples",
+            "pages": [
+              "examples/arm-simulation",
+              "examples/elevator-simulation",
+              "examples/differential-drive-simulation"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Contributing",
+        "groups": [
+          {
+            "group": "Development",
+            "pages": [
+              "contributing/overview",
+              "contributing/building",
+              "contributing/testing",
+              "contributing/style-guide"
+            ]
+          },
+          {
+            "group": "Resources",
+            "pages": [
+              "contributing/development-builds",
+              "contributing/maven-artifacts",
+              "contributing/generated-files"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Hardware Abstraction Layer (HAL) for roboRIO control",
+    "Command-based programming framework for Java and C++",
+    "Advanced control theory with state-space controllers",
+    "Robot simulation with GUI tools and custom extensions",
+    "NetworkTables for real-time robot communication",
+    "Computer vision with cscore and AprilTag detection",
+    "Comprehensive math library with kinematics and trajectory generation",
+    "Type-safe units system for physical measurements",
+    "SysId tool for system identification and characterization",
+    "Multiple drivetrain support (differential, mecanum, swerve)"
+  ],
+  "publicApiSurface": [
+    "edu.wpi.first.wpilibj (WPILibJ - Java robot framework)",
+    "frc namespace (WPILibC - C++ robot framework)",
+    "edu.wpi.first.hal (Hardware Abstraction Layer)",
+    "edu.wpi.first.math (Math utilities, kinematics, control)",
+    "edu.wpi.first.wpilibj2.command (Command-based framework)",
+    "edu.wpi.first.networktables (NetworkTables communication)",
+    "edu.wpi.first.cscore (Camera server and video streaming)",
+    "edu.wpi.first.apriltag (AprilTag detection)",
+    "edu.wpi.first.units (Type-safe units)",
+    "edu.wpi.first.util (Utility classes)",
+    "HALSIM extensions API (Simulation plugins)",
+    "Motor controller classes (PWM, CAN)",
+    "Sensor classes (Encoders, Gyros, Accelerometers)",
+    "Drivetrain kinematics (Differential, Mecanum, Swerve)",
+    "PID controllers and state-space controllers",
+    "Trajectory generation and following",
+    "Pose estimation and odometry"
+  ]
+}
