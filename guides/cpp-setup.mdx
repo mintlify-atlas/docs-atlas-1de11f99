@@ -1,0 +1,303 @@
+---
+title: C++ Project Setup
+description: Set up a C++ robot project with WPILib
+---
+
+## Overview
+
+WPILib uses CMake as its build system for C++ projects. This guide covers setting up a C++ robot project from scratch.
+
+## Prerequisites
+
+- C++20 compatible compiler
+- CMake 3.21 or higher
+- WPILib installation
+- Appropriate toolchain for your platform
+
+## Project Structure
+
+A typical WPILib C++ project has the following structure:
+
+```
+project/
+├── src/
+│   └── main/
+│       ├── cpp/
+│       │   ├── Robot.cpp
+│       │   └── Main.cpp
+│       └── include/
+│           └── Robot.h
+├── CMakeLists.txt
+└── build/
+```
+
+## CMake Configuration
+
+### Basic CMakeLists.txt
+
+Based on the WPILib source configuration:
+
+```cmake
+cmake_minimum_required(VERSION 3.21)
+project(RobotProject)
+
+# Prevent in-source builds
+if(" ${CMAKE_CURRENT_SOURCE_DIR}" STREQUAL " ${CMAKE_CURRENT_BINARY_DIR}")
+    message(
+        FATAL_ERROR
+        "In-source builds are not allowed.
+         You should create a separate directory for build files."
+    )
+endif()
+
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+# Set default build type
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE "RelWithDebInfo" CACHE STRING "" FORCE)
+endif()
+
+# Platform-specific configuration
+if("${CMAKE_HOST_SYSTEM_NAME}" STREQUAL "Windows")
+    set(CMAKE_SYSTEM_VERSION 10.0.18362.0 CACHE STRING INTERNAL FORCE)
+endif()
+
+# Enable position independent code
+set(CMAKE_POSITION_INDEPENDENT_CODE TRUE)
+if(MSVC)
+    add_compile_options(/Zc:__cplusplus)
+endif()
+```
+
+### WPILib Dependencies
+
+Find and link WPILib packages:
+
+```cmake
+# Find WPILib packages
+find_package(wpilib REQUIRED)
+
+# Create executable
+add_executable(robotProgram
+    src/main/cpp/Robot.cpp
+    src/main/cpp/Main.cpp
+)
+
+# Link WPILib libraries
+target_link_libraries(robotProgram
+    wpilib::wpilibc
+    wpilib::wpimath
+    wpilib::wpiutil
+    wpilib::ntcore
+    wpilib::hal
+)
+
+# Include directories
+target_include_directories(robotProgram PRIVATE
+    src/main/include
+)
+```
+
+## Build Options
+
+### Standard Build Types
+
+WPILib supports several build configurations:
+
+- **Debug**: Full debug symbols, no optimization
+- **Release**: Optimized, no debug symbols
+- **RelWithDebInfo**: Optimized with debug symbols (default)
+- **MinSizeRel**: Optimized for size
+
+### Sanitizer Builds (Development)
+
+For debugging:
+
+```cmake
+# Address sanitizer
+set(CMAKE_C_FLAGS_ASAN
+    "${CMAKE_C_FLAGS_DEBUG} -fsanitize=address -fno-omit-frame-pointer"
+    CACHE STRING "Flags for ASan build"
+)
+
+# Thread sanitizer
+set(CMAKE_C_FLAGS_TSAN
+    "${CMAKE_C_FLAGS_DEBUG} -fsanitize=thread -fno-omit-frame-pointer"
+    CACHE STRING "Flags for TSan build"
+)
+```
+
+## Building
+
+<Steps>
+
+### Create build directory
+
+```bash
+mkdir build
+cd build
+```
+
+### Configure the project
+
+For roboRIO (cross-compile):
+
+```bash
+cmake .. -DCMAKE_TOOLCHAIN_FILE=/path/to/roborio.cmake
+```
+
+For desktop simulation:
+
+```bash
+cmake ..
+```
+
+### Build the project
+
+```bash
+cmake --build .
+```
+
+### Deploy to robot
+
+Use the GradleRIO deploy script or:
+
+```bash
+scp robotProgram admin@roborio-XXXX-frc.local:/home/lvuser/
+```
+
+</Steps>
+
+## Compiler Requirements
+
+### C++ Standard
+
+WPILib requires C++20:
+
+```cmake
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+```
+
+### MSVC Configuration
+
+For Visual Studio:
+
+```cmake
+if(MSVC)
+    add_compile_options(/Zc:__cplusplus)
+    add_compile_options(/utf-8)
+endif()
+```
+
+## Output Directories
+
+Configure output paths:
+
+```cmake
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+```
+
+## Optional Components
+
+### Enable Vision (cscore)
+
+For camera support:
+
+```cmake
+option(WITH_CSCORE "Build with cscore" ON)
+
+if(WITH_CSCORE)
+    find_package(OpenCV REQUIRED)
+    target_link_libraries(robotProgram
+        wpilib::cscore
+        wpilib::cameraserver
+    )
+endif()
+```
+
+### Enable Testing
+
+```cmake
+option(WITH_TESTS "Build unit tests" ON)
+
+if(WITH_TESTS)
+    enable_testing()
+    find_package(GTest REQUIRED)
+    add_subdirectory(tests)
+endif()
+```
+
+## IDE Integration
+
+### VS Code
+
+Create `.vscode/c_cpp_properties.json`:
+
+```json
+{
+    "configurations": [
+        {
+            "name": "Linux",
+            "compileCommands": "${workspaceFolder}/build/compile_commands.json"
+        }
+    ]
+}
+```
+
+### CLion
+
+CLion automatically detects CMake projects. Just open the project root.
+
+## Common Build Commands
+
+### Clean build
+
+```bash
+rm -rf build
+mkdir build
+cd build
+cmake ..
+cmake --build .
+```
+
+### Parallel build
+
+```bash
+cmake --build . -j $(nproc)
+```
+
+### Install to system
+
+```bash
+sudo cmake --install .
+```
+
+## Troubleshooting
+
+### CMake Issues
+
+- Ensure CMake 3.21+ is installed: `cmake --version`
+- Clear CMake cache: `rm -rf build/CMakeCache.txt`
+- Regenerate build files: `cmake --build . --clean-first`
+
+### Compiler Errors
+
+- Verify C++20 support in your compiler
+- Check WPILib installation path
+- Ensure all dependencies are installed
+
+### Cross-compilation Issues
+
+- Verify toolchain file path
+- Check roboRIO sysroot installation
+- Ensure network connection to roboRIO
+
+## Next Steps
+
+- [Basic Robot Program](/guides/basic-robot-program) - Create your first robot program
+- [Motor Control](/guides/motor-control) - Control motors
+- [Sensors](/guides/sensors) - Read sensor data

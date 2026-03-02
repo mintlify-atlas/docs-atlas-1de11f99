@@ -1,0 +1,602 @@
+---
+title: Pneumatics Control
+description: Control pneumatic solenoids and compressors with WPILib
+---
+
+## Overview
+
+WPILib provides classes for controlling pneumatic systems, including solenoids for actuators and compressors for maintaining air pressure. This guide covers the Pneumatics Control Module (PCM) and Pneumatic Hub (PH).
+
+## Pneumatics Modules
+
+WPILib supports two types of pneumatics modules:
+
+- **CTRE PCM (Pneumatics Control Module)** - Legacy CAN-based module
+- **REV PH (Pneumatic Hub)** - Current generation CAN-based module with additional features
+
+### Module Types
+
+<Tabs>
+  <Tab title="Java">
+    ```java
+    import edu.wpi.first.wpilibj.PneumaticsModuleType;
+
+    // Specify module type
+    PneumaticsModuleType.CTREPCM;  // CTRE PCM
+    PneumaticsModuleType.REVPH;    // REV Pneumatic Hub
+    ```
+  </Tab>
+
+  <Tab title="C++">
+    ```cpp
+    #include <frc/PneumaticsModuleType.h>
+
+    // Specify module type
+    frc::PneumaticsModuleType::CTREPCM;  // CTRE PCM
+    frc::PneumaticsModuleType::REVPH;    // REV Pneumatic Hub
+    ```
+  </Tab>
+</Tabs>
+
+## Solenoids
+
+Source: `wpilibj/src/main/java/edu/wpi/first/wpilibj/Solenoid.java:14`
+
+Solenoids are electrically controlled pneumatic valves for actuating cylinders.
+
+### Single Solenoid
+
+Single-acting solenoids have one state (extend/retract) controlled by air pressure:
+
+<Tabs>
+  <Tab title="Java">
+    ```java
+    import edu.wpi.first.wpilibj.Solenoid;
+    import edu.wpi.first.wpilibj.PneumaticsModuleType;
+
+    public class IntakeSubsystem {
+      private Solenoid m_solenoid;
+
+      public IntakeSubsystem() {
+        // Solenoid on channel 0 of default REV PH module
+        m_solenoid = new Solenoid(PneumaticsModuleType.REVPH, 0);
+        
+        // Or specify module ID
+        m_solenoid = new Solenoid(1, PneumaticsModuleType.REVPH, 0);
+      }
+
+      public void extend() {
+        m_solenoid.set(true);
+      }
+
+      public void retract() {
+        m_solenoid.set(false);
+      }
+
+      public void toggle() {
+        m_solenoid.toggle();
+      }
+
+      public boolean isExtended() {
+        return m_solenoid.get();
+      }
+    }
+    ```
+  </Tab>
+
+  <Tab title="C++">
+    ```cpp
+    #include <frc/Solenoid.h>
+    #include <frc/PneumaticsModuleType.h>
+
+    class IntakeSubsystem {
+     public:
+      IntakeSubsystem()
+        // Solenoid on channel 0 of default REV PH module
+        : m_solenoid(frc::PneumaticsModuleType::REVPH, 0)
+      {
+        // Or specify module ID:
+        // m_solenoid(1, frc::PneumaticsModuleType::REVPH, 0)
+      }
+
+      void Extend() {
+        m_solenoid.Set(true);
+      }
+
+      void Retract() {
+        m_solenoid.Set(false);
+      }
+
+      void Toggle() {
+        m_solenoid.Toggle();
+      }
+
+      bool IsExtended() {
+        return m_solenoid.Get();
+      }
+
+     private:
+      frc::Solenoid m_solenoid;
+    };
+    ```
+  </Tab>
+</Tabs>
+
+### Double Solenoid
+
+Double-acting solenoids control both extend and retract with air pressure:
+
+<Tabs>
+  <Tab title="Java">
+    ```java
+    import edu.wpi.first.wpilibj.DoubleSolenoid;
+    import edu.wpi.first.wpilibj.PneumaticsModuleType;
+    import static edu.wpi.first.wpilibj.DoubleSolenoid.Value;
+
+    public class ClawSubsystem {
+      private DoubleSolenoid m_solenoid;
+
+      public ClawSubsystem() {
+        // Forward channel 0, reverse channel 1
+        m_solenoid = new DoubleSolenoid(
+          PneumaticsModuleType.REVPH,
+          0,  // Forward channel
+          1   // Reverse channel
+        );
+      }
+
+      public void open() {
+        m_solenoid.set(Value.kForward);
+      }
+
+      public void close() {
+        m_solenoid.set(Value.kReverse);
+      }
+
+      public void off() {
+        // Turn off both solenoids (holds position)
+        m_solenoid.set(Value.kOff);
+      }
+
+      public Value getPosition() {
+        return m_solenoid.get();
+      }
+
+      public boolean isOpen() {
+        return m_solenoid.get() == Value.kForward;
+      }
+    }
+    ```
+  </Tab>
+
+  <Tab title="C++">
+    ```cpp
+    #include <frc/DoubleSolenoid.h>
+    #include <frc/PneumaticsModuleType.h>
+
+    class ClawSubsystem {
+     public:
+      ClawSubsystem()
+        // Forward channel 0, reverse channel 1
+        : m_solenoid(frc::PneumaticsModuleType::REVPH, 0, 1)
+      {}
+
+      void Open() {
+        m_solenoid.Set(frc::DoubleSolenoid::kForward);
+      }
+
+      void Close() {
+        m_solenoid.Set(frc::DoubleSolenoid::kReverse);
+      }
+
+      void Off() {
+        // Turn off both solenoids (holds position)
+        m_solenoid.Set(frc::DoubleSolenoid::kOff);
+      }
+
+      frc::DoubleSolenoid::Value GetPosition() {
+        return m_solenoid.Get();
+      }
+
+      bool IsOpen() {
+        return m_solenoid.Get() == frc::DoubleSolenoid::kForward;
+      }
+
+     private:
+      frc::DoubleSolenoid m_solenoid;
+    };
+    ```
+  </Tab>
+</Tabs>
+
+### Pulse Control
+
+Source: `wpilibj/src/main/java/edu/wpi/first/wpilibj/Solenoid.java:133`
+
+Create timed pulses for quick actuations:
+
+<Tabs>
+  <Tab title="Java">
+    ```java
+    Solenoid solenoid = new Solenoid(PneumaticsModuleType.REVPH, 0);
+    
+    // Set pulse duration (PCM: 0.01-2.55s, PH: 0.001-65.534s)
+    solenoid.setPulseDuration(0.5); // 500ms pulse
+    
+    // Trigger the pulse
+    solenoid.startPulse();
+    // Solenoid will activate for 500ms then deactivate automatically
+    ```
+  </Tab>
+
+  <Tab title="C++">
+    ```cpp
+    frc::Solenoid solenoid{frc::PneumaticsModuleType::REVPH, 0};
+    
+    // Set pulse duration (PCM: 0.01-2.55s, PH: 0.001-65.534s)
+    solenoid.SetPulseDuration(0.5_s); // 500ms pulse
+    
+    // Trigger the pulse
+    solenoid.StartPulse();
+    // Solenoid will activate for 500ms then deactivate automatically
+    ```
+  </Tab>
+</Tabs>
+
+## Compressor
+
+Source: `wpilibj/src/main/java/edu/wpi/first/wpilibj/Compressor.java:14`
+
+The compressor automatically maintains air pressure. It typically doesn't need to be controlled directly.
+
+### Basic Compressor Usage
+
+<Tabs>
+  <Tab title="Java">
+    ```java
+    import edu.wpi.first.wpilibj.Compressor;
+    import edu.wpi.first.wpilibj.PneumaticsModuleType;
+
+    public class RobotContainer {
+      private Compressor m_compressor;
+
+      public RobotContainer() {
+        // Compressor on default module
+        m_compressor = new Compressor(PneumaticsModuleType.REVPH);
+        
+        // Or specify module ID
+        m_compressor = new Compressor(1, PneumaticsModuleType.REVPH);
+        
+        // Compressor automatically runs in closed loop by default
+      }
+
+      public void disableCompressor() {
+        m_compressor.disable();
+      }
+
+      public void enableCompressor() {
+        m_compressor.enableDigital();
+      }
+
+      public boolean isCompressorRunning() {
+        return m_compressor.isEnabled();
+      }
+    }
+    ```
+  </Tab>
+
+  <Tab title="C++">
+    ```cpp
+    #include <frc/Compressor.h>
+    #include <frc/PneumaticsModuleType.h>
+
+    class RobotContainer {
+     public:
+      RobotContainer()
+        // Compressor on default module
+        : m_compressor(frc::PneumaticsModuleType::REVPH)
+      {
+        // Or specify module ID:
+        // m_compressor(1, frc::PneumaticsModuleType::REVPH)
+        
+        // Compressor automatically runs in closed loop by default
+      }
+
+      void DisableCompressor() {
+        m_compressor.Disable();
+      }
+
+      void EnableCompressor() {
+        m_compressor.EnableDigital();
+      }
+
+      bool IsCompressorRunning() {
+        return m_compressor.IsEnabled();
+      }
+
+     private:
+      frc::Compressor m_compressor;
+    };
+    ```
+  </Tab>
+</Tabs>
+
+### Compressor Control Modes
+
+Source: `wpilibj/src/main/java/edu/wpi/first/wpilibj/Compressor.java:129`
+
+<Tabs>
+  <Tab title="Java">
+    ```java
+    Compressor compressor = new Compressor(PneumaticsModuleType.REVPH);
+    
+    // Digital mode (using pressure switch)
+    compressor.enableDigital();
+    
+    // Analog mode (REV PH only with analog pressure sensor)
+    compressor.enableAnalog(100, 120); // Min 100 PSI, Max 120 PSI
+    
+    // Hybrid mode (REV PH only - uses both digital and analog)
+    compressor.enableHybrid(100, 120);
+    
+    // Disable compressor
+    compressor.disable();
+    ```
+  </Tab>
+
+  <Tab title="C++">
+    ```cpp
+    frc::Compressor compressor{frc::PneumaticsModuleType::REVPH};
+    
+    // Digital mode (using pressure switch)
+    compressor.EnableDigital();
+    
+    // Analog mode (REV PH only with analog pressure sensor)
+    compressor.EnableAnalog(100, 120); // Min 100 PSI, Max 120 PSI
+    
+    // Hybrid mode (REV PH only - uses both digital and analog)
+    compressor.EnableHybrid(100, 120);
+    
+    // Disable compressor
+    compressor.Disable();
+    ```
+  </Tab>
+</Tabs>
+
+### Compressor Monitoring
+
+Source: `wpilibj/src/main/java/edu/wpi/first/wpilibj/Compressor.java:82`
+
+<Tabs>
+  <Tab title="Java">
+    ```java
+    Compressor compressor = new Compressor(PneumaticsModuleType.REVPH);
+    
+    // Check if compressor is running
+    boolean running = compressor.isEnabled();
+    
+    // Check pressure switch state
+    boolean pressureLow = compressor.getPressureSwitchValue();
+    
+    // Get current draw
+    double current = compressor.getCurrent();
+    
+    // REV PH only - analog pressure sensor
+    double voltage = compressor.getAnalogVoltage();
+    double pressure = compressor.getPressure(); // PSI
+    ```
+  </Tab>
+
+  <Tab title="C++">
+    ```cpp
+    frc::Compressor compressor{frc::PneumaticsModuleType::REVPH};
+    
+    // Check if compressor is running
+    bool running = compressor.IsEnabled();
+    
+    // Check pressure switch state
+    bool pressureLow = compressor.GetPressureSwitchValue();
+    
+    // Get current draw
+    double current = compressor.GetCurrent();
+    
+    // REV PH only - analog pressure sensor
+    double voltage = compressor.GetAnalogVoltage();
+    double pressure = compressor.GetPressure(); // PSI
+    ```
+  </Tab>
+</Tabs>
+
+## Complete Pneumatics Example
+
+<Tabs>
+  <Tab title="Java">
+    ```java
+    import edu.wpi.first.wpilibj.TimedRobot;
+    import edu.wpi.first.wpilibj.DoubleSolenoid;
+    import edu.wpi.first.wpilibj.Solenoid;
+    import edu.wpi.first.wpilibj.Compressor;
+    import edu.wpi.first.wpilibj.Joystick;
+    import edu.wpi.first.wpilibj.PneumaticsModuleType;
+    import static edu.wpi.first.wpilibj.DoubleSolenoid.Value;
+
+    public class Robot extends TimedRobot {
+      private Compressor m_compressor;
+      private DoubleSolenoid m_clawSolenoid;
+      private Solenoid m_armSolenoid;
+      private Joystick m_joystick;
+
+      @Override
+      public void robotInit() {
+        // Initialize pneumatics module
+        m_compressor = new Compressor(PneumaticsModuleType.REVPH);
+        
+        // Claw - double solenoid on channels 0 and 1
+        m_clawSolenoid = new DoubleSolenoid(
+          PneumaticsModuleType.REVPH, 0, 1
+        );
+        
+        // Arm - single solenoid on channel 2
+        m_armSolenoid = new Solenoid(PneumaticsModuleType.REVPH, 2);
+        
+        m_joystick = new Joystick(0);
+      }
+
+      @Override
+      public void teleopPeriodic() {
+        // Button 1: Open claw
+        if (m_joystick.getRawButtonPressed(1)) {
+          m_clawSolenoid.set(Value.kForward);
+        }
+        
+        // Button 2: Close claw
+        if (m_joystick.getRawButtonPressed(2)) {
+          m_clawSolenoid.set(Value.kReverse);
+        }
+        
+        // Button 3: Toggle arm
+        if (m_joystick.getRawButtonPressed(3)) {
+          m_armSolenoid.toggle();
+        }
+        
+        // Display compressor status
+        if (m_compressor.isEnabled()) {
+          System.out.println("Compressor running - Current: " + 
+            m_compressor.getCurrent() + "A");
+        }
+      }
+
+      @Override
+      public void disabledInit() {
+        // Retract all pneumatics when disabled
+        m_clawSolenoid.set(Value.kOff);
+        m_armSolenoid.set(false);
+      }
+    }
+    ```
+  </Tab>
+
+  <Tab title="C++">
+    ```cpp
+    #include <frc/TimedRobot.h>
+    #include <frc/DoubleSolenoid.h>
+    #include <frc/Solenoid.h>
+    #include <frc/Compressor.h>
+    #include <frc/Joystick.h>
+    #include <frc/PneumaticsModuleType.h>
+    #include <iostream>
+
+    class Robot : public frc::TimedRobot {
+     public:
+      void RobotInit() override {
+        // Pneumatics components initialized in declarations
+      }
+
+      void TeleopPeriodic() override {
+        // Button 1: Open claw
+        if (m_joystick.GetRawButtonPressed(1)) {
+          m_clawSolenoid.Set(frc::DoubleSolenoid::kForward);
+        }
+        
+        // Button 2: Close claw
+        if (m_joystick.GetRawButtonPressed(2)) {
+          m_clawSolenoid.Set(frc::DoubleSolenoid::kReverse);
+        }
+        
+        // Button 3: Toggle arm
+        if (m_joystick.GetRawButtonPressed(3)) {
+          m_armSolenoid.Toggle();
+        }
+        
+        // Display compressor status
+        if (m_compressor.IsEnabled()) {
+          std::cout << "Compressor running - Current: "
+                    << m_compressor.GetCurrent() << "A" << std::endl;
+        }
+      }
+
+      void DisabledInit() override {
+        // Retract all pneumatics when disabled
+        m_clawSolenoid.Set(frc::DoubleSolenoid::kOff);
+        m_armSolenoid.Set(false);
+      }
+
+     private:
+      frc::Compressor m_compressor{frc::PneumaticsModuleType::REVPH};
+      frc::DoubleSolenoid m_clawSolenoid{frc::PneumaticsModuleType::REVPH, 0, 1};
+      frc::Solenoid m_armSolenoid{frc::PneumaticsModuleType::REVPH, 2};
+      frc::Joystick m_joystick{0};
+    };
+    ```
+  </Tab>
+</Tabs>
+
+## Solenoid Safety
+
+Source: `wpilibj/src/main/java/edu/wpi/first/wpilibj/Solenoid.java:116`
+
+### Check for Shorts
+
+<Tabs>
+  <Tab title="Java">
+    ```java
+    Solenoid solenoid = new Solenoid(PneumaticsModuleType.REVPH, 0);
+    
+    // Check if solenoid is disabled due to short
+    if (solenoid.isDisabled()) {
+      System.err.println("Solenoid is shorted and disabled!");
+    }
+    ```
+  </Tab>
+
+  <Tab title="C++">
+    ```cpp
+    frc::Solenoid solenoid{frc::PneumaticsModuleType::REVPH, 0};
+    
+    // Check if solenoid is disabled due to short
+    if (solenoid.IsDisabled()) {
+      std::cerr << "Solenoid is shorted and disabled!" << std::endl;
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Best Practices
+
+- **One compressor per robot** - Only instantiate one Compressor object
+- **Use double solenoids for critical functions** - They provide positive control in both directions
+- **Turn off solenoids when disabled** - Save air and reduce wear
+- **Monitor compressor current** - High current may indicate leaks or problems
+- **Check for shorts** - Use `isDisabled()` to detect solenoid shorts
+- **Use pulse mode for quick actions** - Saves air for brief actuations
+- **Size your air storage** - Ensure you have enough air for a full match
+
+## Troubleshooting
+
+### Solenoid Not Working
+
+- Check CAN connection to pneumatics module
+- Verify correct channel numbers
+- Check for shorts with `isDisabled()`
+- Ensure compressor is building pressure
+- Verify pneumatic connections
+
+### Compressor Not Running
+
+- Check pressure switch wiring
+- Verify compressor is enabled: `enableDigital()`
+- Check current draw (should be 0A when not running)
+- Ensure 12V power to compressor
+
+### Low Pressure
+
+- Check for air leaks in system
+- Verify pressure switch threshold
+- Check compressor current (should be high when running)
+- Inspect airline connections
+
+## Next Steps
+
+- [Motor Control](/guides/motor-control) - Control motors
+- [Sensors](/guides/sensors) - Read sensor data
+- [Vision](/guides/vision) - Process camera data

@@ -1,0 +1,164 @@
+---
+title: SysId
+description: System identification tool for robot mechanisms
+---
+
+SysId is a tool for performing system identification on robot mechanisms. It helps you characterize your robot's drivetrain, arms, elevators, and other mechanisms by collecting data and calculating feedforward and feedback gains.
+
+## Overview
+
+System identification is the process of determining mathematical models for your robot's physical systems. SysId automates data collection and analysis to generate accurate motor characterization values that can be used in your robot code for better control.
+
+## What is System Identification?
+
+System identification determines the relationship between voltage applied to motors and the resulting motion. The key values calculated are:
+
+- **kS (Static Gain)**: Voltage needed to overcome static friction
+- **kV (Velocity Gain)**: Voltage needed per unit of velocity
+- **kA (Acceleration Gain)**: Voltage needed per unit of acceleration
+- **kG (Gravity Gain)**: Voltage needed to overcome gravity (for arms/elevators)
+
+These values are used in feedforward controllers to improve motion control accuracy.
+
+## Running SysId
+
+<Steps>
+  <Step title="Navigate to the WPILib repository">
+    Open a terminal and navigate to the root of the WPILib repository:
+    
+    ```bash
+    cd /path/to/allwpilib
+    ```
+  </Step>
+
+  <Step title="Run SysId using Gradle">
+    Execute the SysId application using the Gradle wrapper:
+    
+    ```bash
+    ./gradlew sysid:run
+    ```
+    
+    On Windows:
+    
+    ```bash
+    gradlew.bat sysid:run
+    ```
+  </Step>
+
+  <Step title="Create a robot project">
+    In SysId, create a new project or use the built-in robot code generator to create a test project for your mechanism.
+  </Step>
+
+  <Step title="Deploy to your robot">
+    Deploy the generated code to your robot using your normal deployment process.
+  </Step>
+
+  <Step title="Run tests">
+    Back in SysId, connect to your robot and run the following test types:
+    
+    - **Quasistatic Tests**: Slowly ramp voltage to measure steady-state behavior
+    - **Dynamic Tests**: Apply a step voltage to measure transient response
+    
+    Run tests in both forward and backward directions.
+  </Step>
+
+  <Step title="Analyze data">
+    After collecting data, SysId will automatically analyze it and calculate the system parameters.
+  </Step>
+</Steps>
+
+## Supported Mechanism Types
+
+SysId supports characterization for:
+
+- **Drivetrain**: Linear and angular characterization
+- **Arm**: Mechanisms that rotate against gravity
+- **Elevator**: Mechanisms that translate against gravity
+- **Simple**: Mechanisms without gravitational effects (flywheels, rollers, etc.)
+
+## Data Collection
+
+### NetworkTables Entries
+
+SysId communicates with your robot program via NetworkTables:
+
+| Entry | Type | Description |
+|-------|------|-------------|
+| `/SmartDashboard/SysIdTelemetry` | `string` | Telemetry data sent from robot after test completes |
+| `/SmartDashboard/SysIdVoltageCommand` | `double` | Voltage command or ramp rate |
+| `/SmartDashboard/SysIdTestType` | `string` | "Quasistatic" or "Dynamic" |
+| `/SmartDashboard/SysIdRotate` | `bool` | For drivetrain rotation tests |
+
+### Telemetry Format
+
+Data is collected with the following format:
+
+**Non-Drivetrain**: `timestamp, voltage, position, velocity`
+
+**Drivetrain**: `timestamp, l voltage, r voltage, l position, r position, l velocity, r velocity, angle, angular rate`
+
+### Supported Units
+
+- Meters
+- Feet  
+- Inches
+- Radians
+- Rotations
+- Degrees
+
+## Troubleshooting
+
+If SysId fails to generate plots or encounters errors:
+
+<Steps>
+  <Step title="Check the data logs">
+    SysId saves data in `.wpilog` format. Use AdvantageScope to view these files for troubleshooting.
+  </Step>
+
+  <Step title="Verify NetworkTables connection">
+    Ensure your robot is connected and publishing to the correct NetworkTables entries.
+  </Step>
+
+  <Step title="Check data quality">
+    Ensure your robot has enough space to safely run the tests and that encoders are properly configured.
+  </Step>
+</Steps>
+
+## Using Results
+
+After characterization, SysId provides feedforward gains that can be used in your robot code:
+
+```java
+// Example: Using SysId results in Java
+SimpleMotorFeedforward feedforward = new SimpleMotorFeedforward(
+    kS, // Static gain from SysId
+    kV, // Velocity gain from SysId
+    kA  // Acceleration gain from SysId
+);
+```
+
+```cpp
+// Example: Using SysId results in C++
+frc::SimpleMotorFeedforward feedforward{kS, kV, kA};
+```
+
+## Building SysId
+
+To build SysId from source:
+
+```bash
+./gradlew sysid:build
+```
+
+## System Requirements
+
+- **Java Development Kit (JDK) 17** or later
+- **C++ Compiler**:
+  - Linux: GCC 11 or greater
+  - Windows: Visual Studio 2022 with C++ support
+  - macOS: Xcode 14 or later command-line tools
+
+## Related Tools
+
+- [Glass](/tools/glass) - Visualization tool for robot data
+- [OutlineViewer](/tools/outline-viewer) - NetworkTables viewer

@@ -1,0 +1,535 @@
+---
+title: CameraServer API
+description: High-level camera streaming API for FRC robots
+---
+
+CameraServer provides a simplified, high-level API for camera streaming on FRC robots, built on top of CSCore.
+
+## Overview
+
+CameraServer makes it easy to:
+- Stream USB cameras to the dashboard with one line of code
+- Switch between multiple cameras
+- Process camera frames with OpenCV
+- Stream processed video
+- Integrate with driver dashboard (Shuffleboard, DriverStation)
+
+<Note>
+  CameraServer is built on CSCore and provides convenience functions for common use cases. For advanced camera control, use CSCore directly.
+</Note>
+
+## Quick Start
+
+### Single Camera
+
+```java
+import edu.wpi.first.cameraserver.CameraServer;
+import edu.wpi.first.wpilibj.TimedRobot;
+
+public class Robot extends TimedRobot {
+  @Override
+  public void robotInit() {
+    // Start automatic camera streaming
+    CameraServer.startAutomaticCapture();
+  }
+}
+```
+
+```cpp
+#include <frc/TimedRobot.h>
+#include <cameraserver/CameraServer.h>
+
+class Robot : public frc::TimedRobot {
+ public:
+  void RobotInit() override {
+    // Start automatic camera streaming
+    frc::CameraServer::StartAutomaticCapture();
+  }
+};
+```
+
+That's it! Camera stream is available at `http://roborio-TEAM-frc.local:1181/stream.mjpg`
+
+## Core API
+
+<CardGroup cols={2}>
+  <Card title="Automatic Capture" icon="camera" href="#automatic-capture">
+    Simple camera streaming
+  </Card>
+  <Card title="Manual Control" icon="sliders" href="#manual-control">
+    Configure camera settings
+  </Card>
+  <Card title="Vision Processing" icon="eye" href="#vision-processing">
+    OpenCV integration
+  </Card>
+  <Card title="Multiple Cameras" icon="cameras" href="#multiple-cameras">
+    Switch between cameras
+  </Card>
+</CardGroup>
+
+## Automatic Capture
+
+### Basic Usage
+
+```java
+import edu.wpi.first.cameraserver.CameraServer;
+import edu.wpi.first.cscore.UsbCamera;
+
+// Start automatic capture on device 0
+CameraServer.startAutomaticCapture();
+
+// Specify device number
+CameraServer.startAutomaticCapture(0);
+
+// Specify name and device
+UsbCamera camera = CameraServer.startAutomaticCapture("Front Camera", 0);
+
+// Specify device path (Linux)
+UsbCamera camera2 = CameraServer.startAutomaticCapture("Camera", "/dev/video0");
+```
+
+### C++ Usage
+
+```cpp
+#include <cameraserver/CameraServer.h>
+
+// Start automatic capture
+frc::CameraServer::StartAutomaticCapture();
+
+// With device number
+frc::CameraServer::StartAutomaticCapture(0);
+
+// With name and device
+cs::UsbCamera camera = frc::CameraServer::StartAutomaticCapture("Front", 0);
+```
+
+## Manual Control
+
+Configure camera after starting automatic capture.
+
+```java
+import edu.wpi.first.cscore.UsbCamera;
+
+UsbCamera camera = CameraServer.startAutomaticCapture();
+
+// Set resolution
+camera.setResolution(320, 240);
+
+// Set framerate
+camera.setFPS(30);
+
+// Set brightness
+camera.setBrightness(50);
+
+// Set exposure
+camera.setExposureManual(20);
+// or
+camera.setExposureAuto();
+
+// Set white balance
+camera.setWhiteBalanceManual(4000);
+// or
+camera.setWhiteBalanceAuto();
+```
+
+```cpp
+cs::UsbCamera camera = frc::CameraServer::StartAutomaticCapture();
+
+camera.SetResolution(320, 240);
+camera.SetFPS(30);
+camera.SetBrightness(50);
+camera.SetExposureManual(20);
+camera.SetWhiteBalanceManual(4000);
+```
+
+## Vision Processing
+
+Process camera frames with OpenCV and stream results.
+
+### Java Vision Thread
+
+```java
+import edu.wpi.first.cameraserver.CameraServer;
+import edu.wpi.first.cscore.CvSink;
+import edu.wpi.first.cscore.CvSource;
+import edu.wpi.first.cscore.UsbCamera;
+import org.opencv.core.Mat;
+import org.opencv.imgproc.Imgproc;
+
+public class VisionThread extends Thread {
+  @Override
+  public void run() {
+    // Get the camera
+    UsbCamera camera = CameraServer.startAutomaticCapture();
+    camera.setResolution(320, 240);
+    
+    // Get a CvSink to grab frames
+    CvSink cvSink = CameraServer.getVideo();
+    
+    // Create a CvSource to stream processed frames
+    CvSource outputStream = CameraServer.putVideo("Processed", 320, 240);
+    
+    // Mats for processing
+    Mat source = new Mat();
+    Mat output = new Mat();
+    
+    while (!Thread.interrupted()) {
+      // Grab a frame
+      if (cvSink.grabFrame(source) == 0) {
+        // Error occurred, get error message
+        outputStream.notifyError(cvSink.getError());
+        continue;
+      }
+      
+      // Process frame (example: convert to grayscale)
+      Imgproc.cvtColor(source, output, Imgproc.COLOR_BGR2GRAY);
+      
+      // Output processed frame
+      outputStream.putFrame(output);
+    }
+  }
+}
+
+// Start vision thread in robotInit()
+@Override
+public void robotInit() {
+  new VisionThread().start();
+}
+```
+
+### C++ Vision Thread
+
+```cpp
+#include <cameraserver/CameraServer.h>
+#include <opencv2/imgproc.hpp>
+#include <thread>
+
+void VisionThread() {
+  // Get camera
+  cs::UsbCamera camera = frc::CameraServer::StartAutomaticCapture();
+  camera.SetResolution(320, 240);
+  
+  // Get sink and source
+  cs::CvSink cvSink = frc::CameraServer::GetVideo();
+  cs::CvSource outputStream = frc::CameraServer::PutVideo("Processed", 320, 240);
+  
+  cv::Mat source;
+  cv::Mat output;
+  
+  while (true) {
+    if (cvSink.GrabFrame(source) == 0) {
+      outputStream.NotifyError(cvSink.GetError());
+      continue;
+    }
+    
+    // Process frame
+    cv::cvtColor(source, output, cv::COLOR_BGR2GRAY);
+    
+    // Output frame
+    outputStream.PutFrame(output);
+  }
+}
+
+void RobotInit() override {
+  std::thread visionThread(VisionThread);
+  visionThread.detach();
+}
+```
+
+### Vision Pipeline Example
+
+```java
+import org.opencv.core.*;
+import org.opencv.imgproc.Imgproc;
+
+public class VisionPipeline {
+  public void process(Mat input, Mat output) {
+    // Convert to HSV
+    Mat hsv = new Mat();
+    Imgproc.cvtColor(input, hsv, Imgproc.COLOR_BGR2HSV);
+    
+    // Threshold for green
+    Mat mask = new Mat();
+    Scalar lower = new Scalar(40, 50, 50);
+    Scalar upper = new Scalar(80, 255, 255);
+    Core.inRange(hsv, lower, upper, mask);
+    
+    // Find contours
+    List<MatOfPoint> contours = new ArrayList<>();
+    Mat hierarchy = new Mat();
+    Imgproc.findContours(mask, contours, hierarchy, 
+                         Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE);
+    
+    // Draw contours on output
+    input.copyTo(output);
+    Imgproc.drawContours(output, contours, -1, 
+                         new Scalar(0, 255, 0), 2);
+    
+    // Cleanup
+    hsv.release();
+    mask.release();
+    hierarchy.release();
+  }
+}
+```
+
+## Multiple Cameras
+
+### Camera Switching
+
+```java
+import edu.wpi.first.cscore.UsbCamera;
+import edu.wpi.first.cscore.VideoSource;
+import edu.wpi.first.cscore.MjpegServer;
+
+public class Robot extends TimedRobot {
+  UsbCamera frontCamera;
+  UsbCamera backCamera;
+  MjpegServer server;
+  
+  @Override
+  public void robotInit() {
+    // Create cameras
+    frontCamera = CameraServer.startAutomaticCapture("Front", 0);
+    backCamera = CameraServer.startAutomaticCapture("Back", 1);
+    
+    // Get the auto-created server
+    server = CameraServer.getServer();
+  }
+  
+  @Override
+  public void teleopPeriodic() {
+    // Switch cameras based on driver input
+    if (driverController.getAButtonPressed()) {
+      server.setSource(frontCamera);
+    } else if (driverController.getBButtonPressed()) {
+      server.setSource(backCamera);
+    }
+  }
+}
+```
+
+### Switched Camera
+
+```java
+import edu.wpi.first.cscore.MjpegServer;
+import edu.wpi.first.cscore.VideoSource;
+
+// Create a switched camera server
+MjpegServer server = CameraServer.addSwitchedCamera("Switchable Camera");
+
+// Create multiple sources
+UsbCamera camera1 = new UsbCamera("Camera 1", 0);
+UsbCamera camera2 = new UsbCamera("Camera 2", 1);
+
+// Switch between sources
+server.setSource(camera1);
+// Later...
+server.setSource(camera2);
+```
+
+### Multiple Simultaneous Streams
+
+```java
+// Front camera on port 1181 (default)
+UsbCamera frontCamera = CameraServer.startAutomaticCapture("Front", 0);
+
+// Back camera on port 1182
+UsbCamera backCamera = new UsbCamera("Back", 1);
+MjpegServer backServer = new MjpegServer("Back Server", 1182);
+backServer.setSource(backCamera);
+
+// Access:
+// Front: http://roborio-TEAM-frc.local:1181/stream.mjpg
+// Back: http://roborio-TEAM-frc.local:1182/stream.mjpg
+```
+
+## Getting Existing Cameras
+
+```java
+import edu.wpi.first.cscore.VideoSource;
+
+// Get camera by name
+VideoSource camera = CameraServer.getVideo("Front Camera");
+
+// Get default camera
+VideoSource defaultCam = CameraServer.getVideo();
+```
+
+## Accessing Streams
+
+Camera streams are accessible via HTTP:
+
+```
+http://roborio-TEAM-frc.local:1181/stream.mjpg
+```
+
+Where `TEAM` is your team number.
+
+### Custom Ports
+
+```java
+// Create server on custom port
+MjpegServer server = new MjpegServer("Custom", 5800);
+server.setSource(camera);
+
+// Access at:
+// http://roborio-TEAM-frc.local:5800/stream.mjpg
+```
+
+## Dashboard Integration
+
+### Shuffleboard
+
+```java
+import edu.wpi.first.wpilibj.shuffleboard.*;
+
+// Camera automatically appears in Shuffleboard
+CameraServer.startAutomaticCapture();
+
+// Or add to specific tab
+ShuffleboardTab tab = Shuffleboard.getTab("Vision");
+tab.add("Camera", camera);
+```
+
+### SmartDashboard
+
+```java
+// Camera stream automatically available in SmartDashboard
+CameraServer.startAutomaticCapture();
+```
+
+## Advanced Features
+
+### Custom Video Modes
+
+```java
+import edu.wpi.first.cscore.VideoMode;
+
+UsbCamera camera = CameraServer.startAutomaticCapture();
+
+// Set specific video mode
+camera.setVideoMode(VideoMode.PixelFormat.kMJPEG, 320, 240, 30);
+
+// Enumerate available modes
+VideoMode[] modes = camera.enumerateVideoModes();
+for (VideoMode mode : modes) {
+    System.out.printf("%dx%d %s %d fps%n", 
+                      mode.width, mode.height, mode.pixelFormat, mode.fps);
+}
+```
+
+### Connection Management
+
+```java
+import edu.wpi.first.cscore.VideoListener;
+import edu.wpi.first.cscore.VideoEvent;
+
+// Listen for camera events
+CameraServer.addListener(event -> {
+    if (event.kind == VideoEvent.Kind.kSourceConnected) {
+        System.out.println("Camera connected: " + event.name);
+    } else if (event.kind == VideoEvent.Kind.kSourceDisconnected) {
+        System.out.println("Camera disconnected: " + event.name);
+    }
+}, EnumSet.of(VideoEvent.Kind.kSourceConnected, 
+              VideoEvent.Kind.kSourceDisconnected));
+```
+
+## Performance Optimization
+
+### Resolution and Framerate
+
+```java
+// Lower resolution for better performance
+camera.setResolution(160, 120);  // Minimal
+camera.setResolution(320, 240);  // Good balance
+camera.setResolution(640, 480);  // Higher quality
+
+// Adjust framerate
+camera.setFPS(15);   // Lower bandwidth
+camera.setFPS(30);   // Standard
+```
+
+### Compression
+
+```java
+// Use MJPEG for hardware compression
+camera.setVideoMode(VideoMode.PixelFormat.kMJPEG, 320, 240, 30);
+
+// Adjust MJPEG quality (if supported)
+VideoProperty jpegQuality = camera.getProperty("jpeg_quality");
+if (jpegQuality.get() != 0) {
+    jpegQuality.set(75);  // Lower = smaller files, lower quality
+}
+```
+
+## Common Patterns
+
+### Driver Camera with Vision Processing
+
+```java
+public class Robot extends TimedRobot {
+  @Override
+  public void robotInit() {
+    // Driver camera (higher quality)
+    UsbCamera driverCam = CameraServer.startAutomaticCapture("Driver", 0);
+    driverCam.setResolution(320, 240);
+    driverCam.setFPS(30);
+    
+    // Vision processing camera (lower resolution, higher FPS)
+    UsbCamera visionCam = new UsbCamera("Vision", 1);
+    visionCam.setResolution(160, 120);
+    visionCam.setFPS(60);
+    visionCam.setExposureManual(10);  // Low exposure for vision
+    
+    // Start vision thread
+    new VisionThread(visionCam).start();
+  }
+}
+```
+
+## Troubleshooting
+
+### Camera Not Detected
+
+```java
+import edu.wpi.first.cscore.UsbCamera;
+import edu.wpi.first.cscore.UsbCameraInfo;
+
+// List all USB cameras
+UsbCameraInfo[] cameras = UsbCamera.enumerateUsbCameras();
+for (UsbCameraInfo info : cameras) {
+    System.out.printf("Camera %d: %s at %s%n", 
+                      info.dev, info.name, info.path);
+}
+```
+
+### Check Connection Status
+
+```java
+boolean connected = camera.isConnected();
+if (!connected) {
+    System.err.println("Camera not connected!");
+}
+```
+
+## Source Code
+
+View the full source code on GitHub:
+- [CameraServer Java](https://github.com/wpilibsuite/allwpilib/tree/main/cameraserver/src/main/java/edu/wpi/first/cameraserver)
+- [CameraServer C++](https://github.com/wpilibsuite/allwpilib/tree/main/cameraserver/src/main/native/include/cameraserver)
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card title="CSCore" icon="camera" href="/api/cscore/overview">
+    Low-level camera API
+  </Card>
+  <Card title="WPINet" icon="network-wired" href="/api/wpinet/overview">
+    Network streaming backend
+  </Card>
+  <Card title="Vision Processing" icon="eye" href="/docs/vision">
+    Vision processing guide
+  </Card>
+</CardGroup>

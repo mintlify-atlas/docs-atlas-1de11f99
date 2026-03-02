@@ -1,80 +1,380 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quickstart
+description: Get started with WPILib by creating your first robot program
 ---
 
-## Get started in three steps
+Get up and running with WPILib in minutes. This guide will walk you through creating a basic robot program that runs on your roboRIO.
 
-Get your documentation site running locally and make your first customization.
+## Understanding the robot lifecycle
 
-### Step 1: Set up your local environment
+WPILib robot programs follow a specific lifecycle with distinct modes:
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
+<Steps>
+  <Step title="Robot initialization">
+    Called once when the robot first starts up. Use this for one-time setup like configuring motors and sensors.
+  </Step>
+  
+  <Step title="Mode initialization">
+    Called once when entering a specific mode (autonomous, teleop, test, or disabled).
+  </Step>
+  
+  <Step title="Periodic execution">
+    Called every 20ms (50 times per second) during each mode. This is where your main robot logic runs.
+  </Step>
+  
+  <Step title="Mode transitions">
+    The robot automatically transitions between modes based on Driver Station input.
+  </Step>
+</Steps>
 
-### Step 2: Deploy your changes
+## Create your first robot program
 
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+Here's a complete basic robot program using the TimedRobot framework:
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+<Tabs>
+  <Tab title="Java">
+```java
+package frc.robot;
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+import edu.wpi.first.wpilibj.TimedRobot;
+import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
+import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
-### Step 3: Go live
+/**
+ * The methods in this class are called automatically corresponding to each mode.
+ * TimedRobot runs a 20ms loop (50Hz) by default.
+ */
+public class Robot extends TimedRobot {
+  private static final String kDefaultAuto = "Default";
+  private static final String kCustomAuto = "My Auto";
+  private String m_autoSelected;
+  private final SendableChooser<String> m_chooser = new SendableChooser<>();
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+  /**
+   * Called when the robot is first started up.
+   * Use this for initialization code.
+   */
+  public Robot() {
+    m_chooser.setDefaultOption("Default Auto", kDefaultAuto);
+    m_chooser.addOption("My Auto", kCustomAuto);
+    SmartDashboard.putData("Auto choices", m_chooser);
+  }
+
+  /**
+   * Called every 20 ms, no matter the mode.
+   * Runs after mode-specific periodic functions.
+   */
+  @Override
+  public void robotPeriodic() {}
+
+  /**
+   * Called once when autonomous is enabled.
+   */
+  @Override
+  public void autonomousInit() {
+    m_autoSelected = m_chooser.getSelected();
+    System.out.println("Auto selected: " + m_autoSelected);
+  }
+
+  /**
+   * Called periodically during autonomous (every 20ms).
+   */
+  @Override
+  public void autonomousPeriodic() {
+    switch (m_autoSelected) {
+      case kCustomAuto:
+        // Put custom auto code here
+        break;
+      case kDefaultAuto:
+      default:
+        // Put default auto code here
+        break;
+    }
+  }
+
+  /**
+   * Called once when teleop is enabled.
+   */
+  @Override
+  public void teleopInit() {}
+
+  /**
+   * Called periodically during teleop (every 20ms).
+   */
+  @Override
+  public void teleopPeriodic() {}
+
+  /**
+   * Called once when the robot is disabled.
+   */
+  @Override
+  public void disabledInit() {}
+
+  /**
+   * Called periodically when disabled.
+   */
+  @Override
+  public void disabledPeriodic() {}
+
+  /**
+   * Called once when test mode is enabled.
+   */
+  @Override
+  public void testInit() {}
+
+  /**
+   * Called periodically during test mode.
+   */
+  @Override
+  public void testPeriodic() {}
+
+  /**
+   * Called once when the robot is first started in simulation.
+   */
+  @Override
+  public void simulationInit() {}
+
+  /**
+   * Called periodically in simulation.
+   */
+  @Override
+  public void simulationPeriodic() {}
+}
+```
+  </Tab>
+  
+  <Tab title="C++">
+```cpp
+#include <frc/TimedRobot.h>
+#include <frc/smartdashboard/SendableChooser.h>
+#include <frc/smartdashboard/SmartDashboard.h>
+
+class Robot : public frc::TimedRobot {
+ public:
+  /**
+   * Called when the robot is first started up.
+   */
+  void RobotInit() override {
+    m_chooser.SetDefaultOption(kDefaultAuto, kDefaultAuto);
+    m_chooser.AddOption(kCustomAuto, kCustomAuto);
+    frc::SmartDashboard::PutData("Auto Modes", &m_chooser);
+  }
+
+  /**
+   * Called every 20 ms, no matter the mode.
+   */
+  void RobotPeriodic() override {}
+
+  /**
+   * Called once when autonomous is enabled.
+   */
+  void AutonomousInit() override {
+    m_autoSelected = m_chooser.GetSelected();
+    std::cout << "Auto selected: " << m_autoSelected << std::endl;
+  }
+
+  /**
+   * Called periodically during autonomous.
+   */
+  void AutonomousPeriodic() override {
+    if (m_autoSelected == kCustomAuto) {
+      // Custom auto code here
+    } else {
+      // Default auto code here
+    }
+  }
+
+  /**
+   * Called once when teleop is enabled.
+   */
+  void TeleopInit() override {}
+
+  /**
+   * Called periodically during teleop.
+   */
+  void TeleopPeriodic() override {}
+
+  /**
+   * Called once when disabled.
+   */
+  void DisabledInit() override {}
+
+  /**
+   * Called periodically when disabled.
+   */
+  void DisabledPeriodic() override {}
+
+  /**
+   * Called once when test mode is enabled.
+   */
+  void TestInit() override {}
+
+  /**
+   * Called periodically during test mode.
+   */
+  void TestPeriodic() override {}
+
+  /**
+   * Called once when simulation is started.
+   */
+  void SimulationInit() override {}
+
+  /**
+   * Called periodically in simulation.
+   */
+  void SimulationPeriodic() override {}
+
+ private:
+  static constexpr const char* kDefaultAuto = "Default";
+  static constexpr const char* kCustomAuto = "My Auto";
+  std::string m_autoSelected;
+  frc::SendableChooser<std::string> m_chooser;
+};
+
+#ifndef RUNNING_FRC_TESTS
+int main() {
+  return frc::StartRobot<Robot>();
+}
+#endif
+```
+  </Tab>
+</Tabs>
+
+<Note>
+The TimedRobot framework automatically calls your periodic methods every 20ms (50Hz). This timing is handled by the framework - you just implement the methods.
+</Note>
+
+## Running in simulation
+
+Test your robot program without hardware using WPILib's simulation framework:
+
+<Tabs>
+  <Tab title="VS Code">
+    1. Open the Command Palette (Ctrl+Shift+P / Cmd+Shift+P)
+    2. Type "WPILib: Simulate Robot Code"
+    3. Select your robot project
+    4. Choose "Sim GUI" to open the simulation interface
+  </Tab>
+  
+  <Tab title="Gradle">
+```bash
+# For Java projects
+./gradlew simulateJava
+
+# For C++ projects
+./gradlew simulateCpp
+```
+  </Tab>
+</Tabs>
+
+The simulation GUI provides:
+- Virtual joysticks and driver station controls
+- Hardware simulation for motors, sensors, and pneumatics
+- NetworkTables viewer for debugging
+- Real-time robot state visualization
+
+## Adding hardware control
+
+Expand your robot program to control motors and read sensors:
+
+<Tabs>
+  <Tab title="Java">
+```java
+import edu.wpi.first.wpilibj.TimedRobot;
+import edu.wpi.first.wpilibj.motorcontrol.PWMSparkMax;
+import edu.wpi.first.wpilibj.Joystick;
+
+public class Robot extends TimedRobot {
+  // Create motor controller on PWM port 0
+  private PWMSparkMax m_motor = new PWMSparkMax(0);
+  
+  // Create joystick on USB port 0
+  private Joystick m_joystick = new Joystick(0);
+
+  @Override
+  public void teleopPeriodic() {
+    // Set motor speed from joystick Y-axis
+    double speed = -m_joystick.getY(); // Invert Y-axis
+    m_motor.set(speed);
+  }
+
+  @Override
+  public void disabledInit() {
+    // Stop motor when disabled
+    m_motor.set(0);
+  }
+}
+```
+  </Tab>
+  
+  <Tab title="C++">
+```cpp
+#include <frc/TimedRobot.h>
+#include <frc/motorcontrol/PWMSparkMax.h>
+#include <frc/Joystick.h>
+
+class Robot : public frc::TimedRobot {
+ public:
+  void TeleopPeriodic() override {
+    // Set motor speed from joystick Y-axis
+    double speed = -m_joystick.GetY(); // Invert Y-axis
+    m_motor.Set(speed);
+  }
+
+  void DisabledInit() override {
+    // Stop motor when disabled
+    m_motor.Set(0);
+  }
+
+ private:
+  // Motor controller on PWM port 0
+  frc::PWMSparkMax m_motor{0};
+  
+  // Joystick on USB port 0
+  frc::Joystick m_joystick{0};
+};
+```
+  </Tab>
+</Tabs>
+
+## Best practices
+
+<CardGroup cols={2}>
+  <Card title="Initialize once" icon="check">
+    Put initialization code in constructors or init methods, not periodic methods
+  </Card>
+  
+  <Card title="Keep periodic fast" icon="gauge-high">
+    Periodic methods run every 20ms. Avoid blocking operations or long calculations
+  </Card>
+  
+  <Card title="Use simulation" icon="flask">
+    Test your code in simulation before deploying to hardware
+  </Card>
+  
+  <Card title="Log data" icon="chart-line">
+    Use SmartDashboard or DataLog to debug and tune your robot
+  </Card>
+</CardGroup>
 
 ## Next steps
 
-Now that you have your docs running, explore these key features:
+Now that you have a basic robot program running, explore these topics:
 
 <CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
+  <Card title="Motor control" icon="gear" href="/guides/motor-control">
+    Learn about different motor controllers and control modes
+  </Card>
+  
+  <Card title="Sensors" icon="radar" href="/guides/sensors">
+    Read encoders, gyros, and other sensors for feedback
+  </Card>
+  
+  <Card title="Command-based programming" icon="code-branch" href="/concepts/command-based-programming">
+    Structure complex robot programs with commands and subsystems
+  </Card>
+  
+  <Card title="Vision processing" icon="camera" href="/guides/vision">
+    Use cameras and AprilTags for autonomous targeting
+  </Card>
 </CardGroup>
-
-<Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
-</Note>

@@ -1,0 +1,217 @@
+---
+title: Sensor Examples
+description: Reading and configuring quadrature encoders
+---
+
+This example demonstrates how to read from a quadrature encoder, including configuration for distance measurement and rate filtering.
+
+## Encoder Example
+
+<Tabs>
+  <Tab title="Java">
+    ```java
+    package edu.wpi.first.wpilibj.examples.encoder;
+
+    import edu.wpi.first.wpilibj.CounterBase;
+    import edu.wpi.first.wpilibj.Encoder;
+    import edu.wpi.first.wpilibj.TimedRobot;
+    import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
+
+    /**
+     * Sample program displaying the value of a quadrature encoder on the SmartDashboard. Quadrature
+     * Encoders are digital sensors which can detect the amount the encoder has rotated since starting
+     * as well as the direction in which the encoder shaft is rotating. However, encoders can not tell
+     * you the absolute position of the encoder shaft (ie, it considers where it starts to be the zero
+     * position, no matter where it starts), and so can only tell you how much the encoder has rotated
+     * since starting. Depending on the precision of an encoder, it will have fewer or greater ticks per
+     * revolution; the number of ticks per revolution will affect the conversion between ticks and
+     * distance, as specified by DistancePerPulse. One of the most common uses of encoders is in the
+     * drivetrain, so that the distance that the robot drives can be precisely controlled during the
+     * autonomous mode.
+     */
+    public class Robot extends TimedRobot {
+      /**
+       * The Encoder object is constructed with 4 parameters, the last two being optional. The first two
+       * parameters (1, 2 in this case) refer to the ports on the roboRIO which the encoder uses.
+       * Because a quadrature encoder has two signal wires, the signal from two DIO ports on the roboRIO
+       * are used. The third (optional) parameter is a boolean which defaults to false. If you set this
+       * parameter to true, the direction of the encoder will be reversed, in case it makes more sense
+       * mechanically. The final (optional) parameter specifies encoding rate (k1X, k2X, or k4X) and
+       * defaults to k4X. Faster (k4X) encoding gives greater positional precision but more noise in the
+       * rate.
+       */
+      private final Encoder m_encoder = new Encoder(1, 2, false, CounterBase.EncodingType.k4X);
+
+      public Robot() {
+        /*
+         * Defines the number of samples to average when determining the rate.
+         * On a quadrature encoder, values range from 1-255;
+         * larger values result in smoother but potentially
+         * less accurate rates than lower values.
+         */
+        m_encoder.setSamplesToAverage(5);
+
+        /*
+         * Defines how far the mechanism attached to the encoder moves per pulse. In
+         * this case, we assume that a 360 count encoder is directly
+         * attached to a 3 inch diameter (1.5inch radius) wheel,
+         * and that we want to measure distance in inches.
+         */
+        m_encoder.setDistancePerPulse(1.0 / 360.0 * 2.0 * Math.PI * 1.5);
+
+        /*
+         * Defines the lowest rate at which the encoder will
+         * not be considered stopped, for the purposes of
+         * the GetStopped() method. Units are in distance / second,
+         * where distance refers to the units of distance
+         * that you are using, in this case inches.
+         */
+        m_encoder.setMinRate(1.0);
+      }
+
+      @Override
+      public void teleopPeriodic() {
+        SmartDashboard.putNumber("Encoder Distance", m_encoder.getDistance());
+        SmartDashboard.putNumber("Encoder Rate", m_encoder.getRate());
+      }
+    }
+    ```
+  </Tab>
+  <Tab title="C++">
+    ```cpp
+    #include <numbers>
+
+    #include <frc/Encoder.h>
+    #include <frc/TimedRobot.h>
+    #include <frc/smartdashboard/SmartDashboard.h>
+
+    /**
+     * Sample program displaying the value of a quadrature encoder on the
+     * SmartDashboard.
+     *
+     * Quadrature Encoders are digital sensors which can detect the amount the
+     * encoder has rotated since starting as well as the direction in which the
+     * encoder shaft is rotating. However, encoders can not tell you the absolute
+     * position of the encoder shaft (ie, it considers where it starts to be the
+     * zero position, no matter where it starts), and so can only tell you how much
+     * the encoder has rotated since starting.
+     *
+     * Depending on the precision of an encoder, it will have fewer or greater ticks
+     * per revolution; the number of ticks per revolution will affect the conversion
+     * between ticks and distance, as specified by DistancePerPulse.
+     *
+     * One of the most common uses of encoders is in the drivetrain, so that the
+     * distance that the robot drives can be precisely controlled during the
+     * autonomous mode.
+     */
+    class Robot : public frc::TimedRobot {
+     public:
+      Robot() {
+        /* Defines the number of samples to average when determining the rate.
+         * On a quadrature encoder, values range from 1-255; larger values result in
+         * smoother but potentially less accurate rates than lower values.
+         */
+        m_encoder.SetSamplesToAverage(5);
+
+        /* Defines how far the mechanism attached to the encoder moves per pulse. In
+         * this case, we assume that a 360 count encoder is directly attached to a 3
+         * inch diameter (1.5inch radius) wheel, and that we want to measure
+         * distance in inches.
+         */
+        m_encoder.SetDistancePerPulse(1.0 / 360.0 * 2.0 * std::numbers::pi * 1.5);
+
+        /* Defines the lowest rate at which the encoder will not be considered
+         * stopped, for the purposes of the GetStopped() method. Units are in
+         * distance / second, where distance refers to the units of distance that
+         * you are using, in this case inches.
+         */
+        m_encoder.SetMinRate(1.0);
+      }
+
+      void TeleopPeriodic() override {
+        // Retrieve the net displacement of the Encoder since the last Reset.
+        frc::SmartDashboard::PutNumber("Encoder Distance", m_encoder.GetDistance());
+
+        // Retrieve the current rate of the encoder.
+        frc::SmartDashboard::PutNumber("Encoder Rate", m_encoder.GetRate());
+      }
+
+     private:
+      /**
+       * The Encoder object is constructed with 4 parameters, the last two being
+       * optional.
+       *
+       * The first two parameters (1, 2 in this case) refer to the ports on the
+       * roboRIO which the encoder uses. Because a quadrature encoder has two signal
+       * wires, the signal from two DIO ports on the roboRIO are used.
+       *
+       * The third (optional) parameter is a boolean which defaults to false. If you
+       * set this parameter to true, the direction of the encoder will  be reversed,
+       * in case it makes more sense mechanically.
+       *
+       * The final (optional) parameter specifies encoding rate (k1X, k2X, or k4X)
+       * and defaults to k4X. Faster (k4X) encoding gives greater positional
+       * precision but more noise in the rate.
+       */
+      frc::Encoder m_encoder{1, 2, false, frc::Encoder::k4X};
+    };
+
+    #ifndef RUNNING_FRC_TESTS
+    int main() {
+      return frc::StartRobot<Robot>();
+    }
+    #endif
+    ```
+  </Tab>
+</Tabs>
+
+## What This Example Demonstrates
+
+### Encoder Configuration
+
+**Encoding Type:** k1X, k2X, or k4X
+- k4X (default): Highest precision, counts every edge of both signals
+- k2X: Medium precision
+- k1X: Lowest precision, but least noisy rate measurement
+
+**Samples to Average:** Smooths rate measurements
+- Range: 1-255
+- Higher values = smoother but slower response
+- Default: 1
+
+**Distance Per Pulse:** Converts encoder counts to real-world units
+
+For a wheel-mounted encoder:
+```java
+distancePerPulse = (π × wheelDiameter) / encoderCPR
+```
+
+Example: 3" diameter wheel, 360 CPR encoder
+```java
+m_encoder.setDistancePerPulse(1.0 / 360.0 * 2.0 * Math.PI * 1.5);
+```
+
+**Min Rate:** Threshold for considering the encoder "stopped"
+- Units: distance per second
+- Used by `getStopped()` method
+
+### Reading Encoder Values
+
+- `getDistance()`: Total distance traveled (uses distancePerPulse)
+- `getRate()`: Current velocity (distance per second)
+- `get()`: Raw encoder count
+- `getStopped()`: True if rate is below minRate
+- `getDirection()`: True for forward, false for reverse
+- `reset()`: Reset count to zero
+
+## Running in Simulation
+
+1. Connect an encoder to DIO ports 1 and 2
+2. Open SmartDashboard
+3. Enable teleop mode
+4. Rotate the encoder and observe distance and rate values
+
+## Source Location
+
+- Java: `wpilibjExamples/src/main/java/edu/wpi/first/wpilibj/examples/encoder/Robot.java`
+- C++: `wpilibcExamples/src/main/cpp/examples/Encoder/cpp/Robot.cpp`

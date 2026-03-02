@@ -1,0 +1,375 @@
+---
+title: Creating Custom Simulation Extensions
+description: Build your own HALSIM extensions to simulate custom hardware and behaviors
+---
+
+Custom simulation extensions allow you to simulate specialized hardware, implement custom protocols, or create unique testing environments for your robot code.
+
+## Extension Structure
+
+A simulation extension is a dynamically loaded library (.dll on Windows, .so on Linux, .dylib on macOS) with a specific entry point that the robot program calls during initialization.
+
+### Minimum Extension Code
+
+Every extension must implement the `HALSIM_InitExtension` function:
+
+```cpp
+#include <hal/Extensions.h>
+#include <cstdio>
+
+extern "C" {
+#if defined(WIN32) || defined(_WIN32)
+__declspec(dllexport)
+#endif
+int HALSIM_InitExtension(void) {
+  std::puts("My Extension Initializing");
+  
+  // Initialize your extension here
+  // Register callbacks, set up connections, etc.
+  
+  std::puts("My Extension Initialized");
+  return 0; // Success
+}
+}
+```
+
+### Function Requirements
+
+- **Return value**: `0` for success, `-1` for failure
+- **extern "C"**: Prevents C++ name mangling
+- **__declspec(dllexport)**: Required on Windows for DLL exports
+- **No parameters**: The function takes no arguments
+
+## Complete Extension Example
+
+Here's a more complete example based on the XRP extension:
+
+```cpp
+// MyCustomExtension.cpp
+#include <cstdio>
+#include <memory>
+#include <hal/Extensions.h>
+#include <hal/simulation/DriverStationData.h>
+
+class MySimExtension {
+public:
+  bool Initialize() {
+    // Register callback for robot state changes
+    HALSIM_RegisterDriverStationEnabledCallback(
+        [](const char* name, void* param, const HAL_Value* value) {
+          bool enabled = value->data.v_boolean;
+          printf("Robot %s\n", enabled ? "enabled" : "disabled");
+        },
+        nullptr,
+        true);
+    
+    return true;
+  }
+  
+  void Shutdown() {
+    std::puts("Extension shutting down");
+  }
+};
+
+static std::unique_ptr<MySimExtension> gExtension;
+
+extern "C" {
+#if defined(WIN32) || defined(_WIN32)
+__declspec(dllexport)
+#endif
+int HALSIM_InitExtension(void) {
+  std::puts("My Custom Extension Initializing");
+  
+  // Register shutdown callback
+  HAL_OnShutdown(nullptr, [](void*) { 
+    gExtension.reset(); 
+  });
+  
+  gExtension = std::make_unique<MySimExtension>();
+  if (!gExtension->Initialize()) {
+    return -1;
+  }
+  
+  std::puts("My Custom Extension Initialized");
+  return 0;
+}
+}
+```
+
+## Using HALSIM Callback Functions
+
+### Available Device APIs
+
+Simulation functions are available for many HAL devices in `hal/simulation/`:
+
+- **AccelerometerData**: Update accelerometer X, Y, Z values
+- **AnalogInData**: Set analog input voltages
+- **DIOData**: Control digital I/O states
+- **EncoderData**: Update encoder counts and rates
+- **GyroData**: Set gyro angles and rates
+- **I2CData**: Simulate I2C device communication
+- **PWMData**: Monitor PWM outputs
+- **SPIData**: Simulate SPI device communication
+- **SimDeviceData**: Create custom simulation devices
+
+### Registering Callbacks
+
+Callbacks allow you to respond to HAL data changes:
+
+```cpp
+#include <hal/simulation/EncoderData.h>
+
+int32_t callbackId = HALSIM_RegisterEncoderCountCallback(
+    encoderIndex,
+    [](const char* name, void* param, const HAL_Value* value) {
+      int32_t count = value->data.v_int;
+      printf("Encoder count: %d\n", count);
+    },
+    nullptr,  // User parameter
+    true);    // Initial callback
+```
+
+### Setting HAL Values
+
+Update simulated hardware values from your extension:
+
+```cpp
+#include <hal/simulation/AnalogInData.h>
+#include <hal/simulation/DIOData.h>
+
+// Set analog input voltage
+HALSIM_SetAnalogInVoltage(channel, 3.3);
+
+// Set digital input state
+HALSIM_SetDIOValue(channel, true);
+
+// Update gyro angle
+HALSIM_SetGyroAngle(0, 45.0);
+```
+
+## Building Your Extension
+
+### Setup build.gradle
+
+Create a `build.gradle` file for your extension. Use the XRP extension as a template:
+
+```groovy
+description = "My Custom Simulation Extension"
+
+ext {
+    includeWpiutil = true
+    pluginName = 'halsim_my_extension'
+}
+
+apply from: "${rootDir}/shared/plugins/setupBuild.gradle"
+
+model {
+    binaries {
+        all {
+            // Don't build for roboRIO
+            if (it.targetPlatform.name == nativeUtils.wpi.platforms.roborio) {
+                it.buildable = false
+                return
+            }
+            
+            // Link with WPILib libraries
+            lib project: ':wpinet', library: 'wpinet', linkage: 'shared'
+            
+            // If you need websockets support
+            // lib project: ":simulation:halsim_ws_core", 
+            //     library: "halsim_ws_core", linkage: "static"
+        }
+    }
+}
+```
+
+### Key Configuration
+
+- **pluginName**: Must match your extension's library name
+- **includeWpiutil**: Include WPIUtil library
+- **linkage: 'shared'**: Link with shared libraries (important!)
+- **roborio check**: Disable building for roboRIO platform
+
+### Building the Extension
+
+<Steps>
+  <Step title="Place in allwpilib">
+    Put your extension directory in `allwpilib/simulation/`
+  </Step>
+  
+  <Step title="Build WPILib">
+    Build the entire WPILib project:
+    ```bash
+    ./gradlew build
+    ```
+  </Step>
+  
+  <Step title="Publish Locally">
+    Publish to your local Maven repository:
+    ```bash
+    ./gradlew publish
+    ```
+  </Step>
+</Steps>
+
+## Using Your Custom Extension
+
+### In a Robot Project
+
+After publishing WPILib locally, add your extension to a robot project's `build.gradle`:
+
+```groovy
+wpi.sim.addDep(
+    "My Custom Extension",           // Display name
+    "edu.wpi.first.halsim",          // Group ID
+    "halsim_my_extension"             // Plugin name from build.gradle
+)
+```
+
+### Configure Robot Project
+
+Follow the [development builds guide](https://github.com/wpilibsuite/allwpilib/blob/main/DevelopmentBuilds.md) to configure your robot project to use your local WPILib build.
+
+Add to `build.gradle`:
+
+```groovy
+wpi.maven.useDevelopment = true
+wpi.versions.wpilibVersion = '2025.0.0-development'
+```
+
+## Extension Communication
+
+### Registering Your Extension
+
+Allow other extensions to detect your extension:
+
+```cpp
+struct MyExtensionData {
+  void (*SendCommand)(const char* cmd);
+  int (*GetStatus)();
+};
+
+MyExtensionData data = {
+  .SendCommand = &SendCommandImpl,
+  .GetStatus = &GetStatusImpl
+};
+
+HAL_RegisterExtension("my_extension", &data);
+```
+
+### Listening for Other Extensions
+
+Detect when specific extensions are loaded:
+
+```cpp
+HAL_RegisterExtensionListener(
+    nullptr, 
+    [](void*, const char* name, void* data) {
+      if (std::string_view{name} == "halsim_gui") {
+        // GUI extension loaded, can interact with it
+        auto* guiData = static_cast<GuiExtensionData*>(data);
+        guiData->RegisterWindow("My Window", &CreateWindow);
+      }
+    });
+```
+
+## Advanced: I2C/SPI Simulation
+
+Simulate real I2C or SPI devices:
+
+```cpp
+#include <hal/simulation/I2CData.h>
+
+// Register I2C read callback
+HALSIM_RegisterI2CReadCallback(
+    port,
+    [](const char* name, void* param, 
+       const uint8_t* buffer, uint32_t count) -> int32_t {
+      // Simulate device response
+      if (buffer[0] == 0x00) { // Read register 0
+        uint8_t response[2] = {0x12, 0x34};
+        HALSIM_SetI2CReadData(port, response, 2);
+        return 2;
+      }
+      return 0;
+    },
+    nullptr);
+```
+
+## Performance Considerations
+
+### Callback Performance
+
+Callbacks run synchronously in the robot program thread:
+
+- Keep callbacks **fast** - avoid heavy computation
+- Don't block - no long delays or I/O waits
+- Process data in background threads if needed
+
+```cpp
+// GOOD: Quick callback
+HALSIM_RegisterEncoderCountCallback(
+    index,
+    [](const char* name, void* param, const HAL_Value* value) {
+      quickUpdate(value->data.v_int);
+    },
+    nullptr, true);
+
+// BAD: Slow callback - blocks robot thread!
+HALSIM_RegisterEncoderCountCallback(
+    index,
+    [](const char* name, void* param, const HAL_Value* value) {
+      std::this_thread::sleep_for(100ms); // Don't do this!
+      expensiveCalculation();
+    },
+    nullptr, true);
+```
+
+### Use Background Processing
+
+For heavy operations:
+
+```cpp
+std::queue<int32_t> dataQueue;
+std::mutex queueMutex;
+
+// Quick callback - just queue the data
+HALSIM_RegisterCallback(..., 
+    [](const char* name, void* param, const HAL_Value* value) {
+      std::lock_guard<std::mutex> lock(queueMutex);
+      dataQueue.push(value->data.v_int);
+    }, ...);
+
+// Process in background thread
+std::thread([&]() {
+  while (running) {
+    std::lock_guard<std::mutex> lock(queueMutex);
+    while (!dataQueue.empty()) {
+      processData(dataQueue.front());
+      dataQueue.pop();
+    }
+  }
+}).detach();
+```
+
+## Example Extensions in WPILib
+
+Study these built-in extensions for reference:
+
+- **halsim_xrp**: Simple client protocol implementation
+- **halsim_ws_server**: WebSocket server with HTTP support
+- **halsim_gui**: Complex GUI with ImGui integration
+- **halsim_ds_socket**: Driver Station protocol implementation
+
+Source code: `allwpilib/simulation/halsim_*/`
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Simulation Overview" icon="book" href="/simulation/overview">
+    Review the simulation architecture
+  </Card>
+  <Card title="Running Examples" icon="play" href="/simulation/running-examples">
+    Test your extension with example programs
+  </Card>
+</CardGroup>

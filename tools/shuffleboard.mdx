@@ -1,0 +1,258 @@
+---
+title: Shuffleboard
+description: Customizable dashboard for FRC competitions
+---
+
+Shuffleboard is the official FRC dashboard application designed for use during competitions. It provides a customizable interface for displaying robot data, camera feeds, and controls.
+
+## Overview
+
+Shuffleboard is a modern, user-friendly dashboard that replaces the legacy SmartDashboard. It's built with competition use in mind, offering a flexible widget-based interface that can be customized to show exactly what your drive team needs.
+
+## Features
+
+- **Customizable Layouts**: Drag-and-drop interface for arranging widgets
+- **Widget System**: Variety of pre-built widgets for different data types
+- **Camera Streams**: Display multiple camera feeds simultaneously
+- **NetworkTables Integration**: Automatic discovery of robot data
+- **Layout Saving**: Save and load custom layouts
+- **Plugin Support**: Extend functionality with custom plugins
+- **Recording**: Record and playback NetworkTables data
+
+## Key Advantages
+
+### Competition-Ready Design
+
+Shuffleboard is designed specifically for competition environments:
+- Clear, readable displays visible from a distance
+- Reliable performance under competition conditions
+- Minimal setup required between matches
+
+### Smart Widget Selection
+
+Shuffleboard automatically selects appropriate widgets based on data types:
+- Boolean values → Toggle buttons or indicators
+- Numeric values → Number displays or graphs
+- String values → Text displays
+- Camera streams → Video feeds
+- Choosers → Dropdown menus
+
+### Layout Management
+
+Create different layouts for different purposes:
+- **Practice Layout**: Detailed debugging information
+- **Competition Layout**: Essential drive team information only
+- **Autonomous Testing**: Autonomous mode selection and feedback
+
+## Using with WPILib
+
+Shuffleboard is included with the WPILib installer and integrates seamlessly with WPILib robot programs.
+
+### Publishing Data from Robot Code
+
+**Java:**
+```java
+import edu.wpi.first.wpilibj.shuffleboard.Shuffleboard;
+import edu.wpi.first.wpilibj.shuffleboard.ShuffleboardTab;
+
+public class Robot extends TimedRobot {
+    private ShuffleboardTab tab = Shuffleboard.getTab("My Tab");
+    
+    public void robotInit() {
+        // Add data to Shuffleboard
+        tab.add("Motor Speed", 0.0);
+        tab.add("Sensor Value", sensorObject);
+    }
+}
+```
+
+**C++:**
+```cpp
+#include <frc/shuffleboard/Shuffleboard.h>
+
+void Robot::RobotInit() {
+    auto& tab = frc::Shuffleboard::GetTab("My Tab");
+    
+    // Add data to Shuffleboard
+    tab.Add("Motor Speed", 0.0);
+    tab.Add("Sensor Value", sensorObject);
+}
+```
+
+### Organizing Data into Tabs
+
+Organize your dashboard data into logical tabs:
+
+```java
+ShuffleboardTab driveTab = Shuffleboard.getTab("Drive");
+ShuffleboardTab autonomousTab = Shuffleboard.getTab("Autonomous");
+ShuffleboardTab diagnosticsTab = Shuffleboard.getTab("Diagnostics");
+
+driveTab.add("Left Speed", leftMotor);
+driveTab.add("Right Speed", rightMotor);
+
+autonomousTab.add("Auto Selector", autoChooser);
+```
+
+## Widget Types
+
+### Basic Widgets
+
+- **Text Display**: Shows string values
+- **Number Bar**: Horizontal bar for numeric values
+- **Number Slider**: Interactive slider for number input
+- **Voltage View**: Display for voltage values
+- **Boolean Box**: Shows boolean states
+- **Toggle Button**: Interactive boolean control
+
+### Complex Widgets
+
+- **Graph**: Line graph for numeric values over time
+- **Camera Stream**: Live camera feed display
+- **Command**: Shows command status and allows scheduling
+- **Subsystem**: Shows subsystem status and default command
+- **PID Controller**: Displays and edits PID gains
+- **SendableChooser**: Dropdown menu for selections
+
+### Field Widgets
+
+- **Field2d**: Top-down view of robot position on the field
+- **Mechanism2d**: Visualization of robot mechanisms
+
+## Camera Integration
+
+Shuffleboard provides excellent camera stream support:
+
+### Adding Camera Streams
+
+```java
+import edu.wpi.first.cameraserver.CameraServer;
+
+public void robotInit() {
+    // Start camera server
+    CameraServer.startAutomaticCapture();
+}
+```
+
+Shuffleboard will automatically detect and display available camera streams.
+
+### Multiple Cameras
+
+Display multiple camera feeds simultaneously:
+- Front-facing camera for driving
+- Rear-facing camera for alignment
+- Mechanism camera for close-up operations
+
+## Best Practices
+
+### For Competition
+
+<Steps>
+  <Step title="Keep it simple">
+    Only display information the drive team needs during a match. Too much information can be overwhelming.
+  </Step>
+
+  <Step title="Use clear labels">
+    Make widget titles clear and readable from a distance.
+  </Step>
+
+  <Step title="Test before competition">
+    Verify your Shuffleboard layout works correctly before arriving at competition.
+  </Step>
+
+  <Step title="Save your layout">
+    Always save your competition layout and keep a backup.
+  </Step>
+
+  <Step title="Minimize network usage">
+    Avoid publishing unnecessary data that could congest NetworkTables.
+  </Step>
+</Steps>
+
+### Layout Organization
+
+- Group related information together
+- Place critical information prominently
+- Use consistent widget sizes for a clean appearance
+- Separate development data from competition data using tabs
+
+## Recording and Playback
+
+Shuffleboard can record NetworkTables data for later analysis:
+
+1. Click the **Record** button to start recording
+2. Run your robot or simulation
+3. Click **Stop** to end recording
+4. Use **Playback** to review the recorded data
+
+This is useful for:
+- Debugging issues that occurred during a match
+- Analyzing robot behavior
+- Training drive team members
+
+## Running Shuffleboard
+
+Shuffleboard is typically installed with the WPILib suite:
+
+### From WPILib Installation
+
+If you have WPILib installed, Shuffleboard is available through:
+- The WPILib menu in VS Code
+- The Start menu (Windows)
+- Applications folder (macOS)
+- Desktop shortcut (Linux)
+
+### Connecting to Robot
+
+Shuffleboard automatically attempts to connect to NetworkTables:
+- Enter your team number in the settings
+- Or manually specify an IP address
+- Shuffleboard will connect when the robot is powered on
+
+## System Requirements
+
+- **Java Runtime Environment (JRE) 17** or later
+- **Operating Systems**:
+  - Windows 10 or later
+  - macOS 10.15 or later
+  - Ubuntu 20.04 or later
+
+## Integration with Other Tools
+
+### With Glass
+
+Use Glass for development and detailed debugging, then switch to Shuffleboard for competition.
+
+### With AdvantageScope
+
+Use AdvantageScope for detailed log analysis and Shuffleboard for real-time competition use.
+
+### With OutlineViewer
+
+Use OutlineViewer for quick debugging and Shuffleboard for organized dashboard displays.
+
+## Troubleshooting
+
+### Shuffleboard Won't Connect
+
+- Verify your team number or IP address is correct
+- Check that the robot is powered on and connected to the network
+- Ensure firewall settings allow NetworkTables traffic (port 1735)
+
+### Widgets Not Appearing
+
+- Check that your robot code is publishing to NetworkTables
+- Verify the data is published to SmartDashboard or Shuffleboard tables
+- Refresh the Shuffleboard interface
+
+### Camera Streams Not Loading
+
+- Verify CameraServer is started in your robot code
+- Check network bandwidth (camera streams require significant bandwidth)
+- Ensure the camera is properly connected to the roboRIO
+
+## Related Tools
+
+- [Glass](/tools/glass) - Advanced visualization tool for development
+- [OutlineViewer](/tools/outline-viewer) - Simple NetworkTables viewer
+- [SysId](/tools/sysid) - System identification tool

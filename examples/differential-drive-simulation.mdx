@@ -1,0 +1,480 @@
+---
+title: Differential Drive Simulation
+description: Complete drivetrain simulation with odometry, kinematics, and field visualization
+---
+
+This example demonstrates a full differential drive simulation with kinematics, odometry tracking, autonomous trajectory following, and Field2d visualization.
+
+## Main Robot Class
+
+<Tabs>
+  <Tab title="Java">
+    ```java
+    package edu.wpi.first.wpilibj.examples.simpledifferentialdrivesimulation;
+
+    import edu.wpi.first.math.controller.LTVUnicycleController;
+    import edu.wpi.first.math.filter.SlewRateLimiter;
+    import edu.wpi.first.math.geometry.Pose2d;
+    import edu.wpi.first.math.geometry.Rotation2d;
+    import edu.wpi.first.math.kinematics.ChassisSpeeds;
+    import edu.wpi.first.math.trajectory.Trajectory;
+    import edu.wpi.first.math.trajectory.TrajectoryConfig;
+    import edu.wpi.first.math.trajectory.TrajectoryGenerator;
+    import edu.wpi.first.wpilibj.TimedRobot;
+    import edu.wpi.first.wpilibj.Timer;
+    import edu.wpi.first.wpilibj.XboxController;
+    import java.util.List;
+
+    public class Robot extends TimedRobot {
+      private final XboxController m_controller = new XboxController(0);
+
+      // Slew rate limiters to make joystick inputs more gentle; 1/3 sec from 0 to 1.
+      private final SlewRateLimiter m_speedLimiter = new SlewRateLimiter(3);
+      private final SlewRateLimiter m_rotLimiter = new SlewRateLimiter(3);
+
+      private final Drivetrain m_drive = new Drivetrain();
+      private final LTVUnicycleController m_feedback = new LTVUnicycleController(0.020);
+      private final Timer m_timer = new Timer();
+      private final Trajectory m_trajectory;
+
+      public Robot() {
+        m_trajectory =
+            TrajectoryGenerator.generateTrajectory(
+                new Pose2d(2, 2, Rotation2d.kZero),
+                List.of(),
+                new Pose2d(6, 4, Rotation2d.kZero),
+                new TrajectoryConfig(2, 2));
+      }
+
+      @Override
+      public void robotPeriodic() {
+        m_drive.periodic();
+      }
+
+      @Override
+      public void autonomousInit() {
+        m_timer.restart();
+        m_drive.resetOdometry(m_trajectory.getInitialPose());
+      }
+
+      @Override
+      public void autonomousPeriodic() {
+        double elapsed = m_timer.get();
+        Trajectory.State reference = m_trajectory.sample(elapsed);
+        ChassisSpeeds speeds = m_feedback.calculate(m_drive.getPose(), reference);
+        m_drive.drive(speeds.vxMetersPerSecond, speeds.omegaRadiansPerSecond);
+      }
+
+      @Override
+      public void teleopPeriodic() {
+        // Get the x speed. We are inverting this because Xbox controllers return
+        // negative values when we push forward.
+        double xSpeed = -m_speedLimiter.calculate(m_controller.getLeftY()) * Drivetrain.kMaxSpeed;
+
+        // Get the rate of angular rotation. 
+        double rot = -m_rotLimiter.calculate(m_controller.getRightX()) * Drivetrain.kMaxAngularSpeed;
+        m_drive.drive(xSpeed, rot);
+      }
+
+      @Override
+      public void simulationPeriodic() {
+        m_drive.simulationPeriodic();
+      }
+    }
+    ```
+  </Tab>
+  <Tab title="C++">
+    ```cpp
+    #include <frc/TimedRobot.h>
+    #include <frc/Timer.h>
+    #include <frc/XboxController.h>
+    #include <frc/controller/LTVUnicycleController.h>
+    #include <frc/filter/SlewRateLimiter.h>
+    #include <frc/trajectory/TrajectoryGenerator.h>
+
+    #include "Drivetrain.h"
+
+    class Robot : public frc::TimedRobot {
+     public:
+      Robot() {
+        m_trajectory = frc::TrajectoryGenerator::GenerateTrajectory(
+            frc::Pose2d{2_m, 2_m, 0_rad}, {}, frc::Pose2d{6_m, 4_m, 0_rad},
+            frc::TrajectoryConfig(2_mps, 2_mps_sq));
+      }
+
+      void RobotPeriodic() override { m_drive.Periodic(); }
+
+      void AutonomousInit() override {
+        m_timer.Restart();
+        m_drive.ResetOdometry(m_trajectory.InitialPose());
+      }
+
+      void AutonomousPeriodic() override {
+        auto elapsed = m_timer.Get();
+        auto reference = m_trajectory.Sample(elapsed);
+        auto speeds = m_feedback.Calculate(m_drive.GetPose(), reference);
+        m_drive.Drive(speeds.vx, speeds.omega);
+      }
+
+      void TeleopPeriodic() override {
+        const auto xSpeed = -m_speedLimiter.Calculate(m_controller.GetLeftY()) *
+                            Drivetrain::kMaxSpeed;
+        auto rot = -m_rotLimiter.Calculate(m_controller.GetRightX()) *
+                   Drivetrain::kMaxAngularSpeed;
+        m_drive.Drive(xSpeed, rot);
+      }
+
+      void SimulationPeriodic() override { m_drive.SimulationPeriodic(); }
+
+     private:
+      frc::XboxController m_controller{0};
+      frc::SlewRateLimiter<units::scalar> m_speedLimiter{3 / 1_s};
+      frc::SlewRateLimiter<units::scalar> m_rotLimiter{3 / 1_s};
+      Drivetrain m_drive;
+      frc::Trajectory m_trajectory;
+      frc::LTVUnicycleController m_feedback{20_ms};
+      frc::Timer m_timer;
+    };
+
+    #ifndef RUNNING_FRC_TESTS
+    int main() {
+      return frc::StartRobot<Robot>();
+    }
+    #endif
+    ```
+  </Tab>
+</Tabs>
+
+## Drivetrain Subsystem (Partial)
+
+<Tabs>
+  <Tab title="Java">
+    ```java
+    package edu.wpi.first.wpilibj.examples.simpledifferentialdrivesimulation;
+
+    import edu.wpi.first.math.controller.PIDController;
+    import edu.wpi.first.math.controller.SimpleMotorFeedforward;
+    import edu.wpi.first.math.geometry.Pose2d;
+    import edu.wpi.first.math.kinematics.ChassisSpeeds;
+    import edu.wpi.first.math.kinematics.DifferentialDriveKinematics;
+    import edu.wpi.first.math.kinematics.DifferentialDriveOdometry;
+    import edu.wpi.first.math.kinematics.DifferentialDriveWheelSpeeds;
+    import edu.wpi.first.math.system.plant.DCMotor;
+    import edu.wpi.first.math.system.plant.LinearSystemId;
+    import edu.wpi.first.wpilibj.AnalogGyro;
+    import edu.wpi.first.wpilibj.Encoder;
+    import edu.wpi.first.wpilibj.motorcontrol.PWMSparkMax;
+    import edu.wpi.first.wpilibj.simulation.AnalogGyroSim;
+    import edu.wpi.first.wpilibj.simulation.DifferentialDrivetrainSim;
+    import edu.wpi.first.wpilibj.simulation.EncoderSim;
+    import edu.wpi.first.wpilibj.smartdashboard.Field2d;
+    import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
+
+    public class Drivetrain {
+      public static final double kMaxSpeed = 3.0;  // meters per second
+      public static final double kMaxAngularSpeed = Math.PI;  // 1/2 rotation per second
+
+      private static final double kTrackWidth = 0.381 * 2;
+      private static final double kWheelRadius = 0.0508;
+
+      private final PWMSparkMax m_leftLeader = new PWMSparkMax(1);
+      private final PWMSparkMax m_rightLeader = new PWMSparkMax(3);
+
+      private final Encoder m_leftEncoder = new Encoder(0, 1);
+      private final Encoder m_rightEncoder = new Encoder(2, 3);
+
+      private final PIDController m_leftPIDController = new PIDController(8.5, 0, 0);
+      private final PIDController m_rightPIDController = new PIDController(8.5, 0, 0);
+
+      private final AnalogGyro m_gyro = new AnalogGyro(0);
+
+      private final DifferentialDriveKinematics m_kinematics =
+          new DifferentialDriveKinematics(kTrackWidth);
+      private final DifferentialDriveOdometry m_odometry =
+          new DifferentialDriveOdometry(
+              m_gyro.getRotation2d(), m_leftEncoder.getDistance(), m_rightEncoder.getDistance());
+
+      private final SimpleMotorFeedforward m_feedforward = new SimpleMotorFeedforward(1, 3);
+
+      // Simulation classes
+      private final AnalogGyroSim m_gyroSim = new AnalogGyroSim(m_gyro);
+      private final EncoderSim m_leftEncoderSim = new EncoderSim(m_leftEncoder);
+      private final EncoderSim m_rightEncoderSim = new EncoderSim(m_rightEncoder);
+      private final Field2d m_fieldSim = new Field2d();
+      private final DifferentialDrivetrainSim m_drivetrainSimulator =
+          new DifferentialDrivetrainSim(
+              LinearSystemId.identifyDrivetrainSystem(1.98, 0.2, 1.5, 0.3),
+              DCMotor.getCIM(2),
+              8,
+              kTrackWidth,
+              kWheelRadius,
+              null);
+
+      public Drivetrain() {
+        m_rightLeader.setInverted(true);
+        m_leftEncoder.setDistancePerPulse(2 * Math.PI * kWheelRadius / 4096);
+        m_rightEncoder.setDistancePerPulse(2 * Math.PI * kWheelRadius / 4096);
+        SmartDashboard.putData("Field", m_fieldSim);
+      }
+
+      /** Sets speeds to the drivetrain motors. */
+      public void setSpeeds(DifferentialDriveWheelSpeeds speeds) {
+        final double leftFeedforward = m_feedforward.calculate(speeds.leftMetersPerSecond);
+        final double rightFeedforward = m_feedforward.calculate(speeds.rightMetersPerSecond);
+        double leftOutput =
+            m_leftPIDController.calculate(m_leftEncoder.getRate(), speeds.leftMetersPerSecond);
+        double rightOutput =
+            m_rightPIDController.calculate(m_rightEncoder.getRate(), speeds.rightMetersPerSecond);
+
+        m_leftLeader.setVoltage(leftOutput + leftFeedforward);
+        m_rightLeader.setVoltage(rightOutput + rightFeedforward);
+      }
+
+      public void drive(double xSpeed, double rot) {
+        setSpeeds(m_kinematics.toWheelSpeeds(new ChassisSpeeds(xSpeed, 0, rot)));
+      }
+
+      public void resetOdometry(Pose2d pose) {
+        m_drivetrainSimulator.setPose(pose);
+        m_odometry.resetPosition(
+            m_gyro.getRotation2d(), m_leftEncoder.getDistance(), m_rightEncoder.getDistance(), pose);
+      }
+
+      public Pose2d getPose() {
+        return m_odometry.getPoseMeters();
+      }
+
+      /** Update our simulation. */
+      public void simulationPeriodic() {
+        m_drivetrainSimulator.setInputs(
+            m_leftLeader.get() * RobotController.getInputVoltage(),
+            m_rightLeader.get() * RobotController.getInputVoltage());
+        m_drivetrainSimulator.update(0.02);
+
+        m_leftEncoderSim.setDistance(m_drivetrainSimulator.getLeftPositionMeters());
+        m_leftEncoderSim.setRate(m_drivetrainSimulator.getLeftVelocityMetersPerSecond());
+        m_rightEncoderSim.setDistance(m_drivetrainSimulator.getRightPositionMeters());
+        m_rightEncoderSim.setRate(m_drivetrainSimulator.getRightVelocityMetersPerSecond());
+        m_gyroSim.setAngle(-m_drivetrainSimulator.getHeading().getDegrees());
+      }
+
+      /** Update odometry. */
+      public void periodic() {
+        m_odometry.update(
+            m_gyro.getRotation2d(), m_leftEncoder.getDistance(), m_rightEncoder.getDistance());
+        m_fieldSim.setRobotPose(m_odometry.getPoseMeters());
+      }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## What This Example Demonstrates
+
+### DifferentialDrivetrainSim
+
+Simulates a complete tank-style drivetrain with realistic physics:
+
+```java
+DifferentialDrivetrainSim m_drivetrainSimulator = new DifferentialDrivetrainSim(
+    LinearSystemId.identifyDrivetrainSystem(1.98, 0.2, 1.5, 0.3),  // System model
+    DCMotor.getCIM(2),        // 2 CIM motors per side
+    8,                        // Gear reduction (8:1)
+    kTrackWidth,              // Distance between wheels (meters)
+    kWheelRadius,             // Wheel radius (meters)
+    null);                    // Measurement noise (optional)
+```
+
+**System identification parameters:**
+- `kV`: Velocity gain (volts per meter/second)
+- `kA`: Acceleration gain (volts per meter/second²)
+- `kVAngular`: Angular velocity gain (volts per radian/second)
+- `kAAngular`: Angular acceleration gain (volts per radian/second²)
+
+These can be obtained using the **SysId tool**.
+
+### Differential Drive Kinematics
+
+Converts between chassis speeds and wheel speeds:
+
+```java
+DifferentialDriveKinematics m_kinematics = new DifferentialDriveKinematics(kTrackWidth);
+
+// Convert chassis speeds to wheel speeds
+ChassisSpeeds chassisSpeeds = new ChassisSpeeds(
+    xSpeed,    // Forward velocity (m/s)
+    0,         // Sideways velocity (always 0 for differential drive)
+    rotation); // Angular velocity (rad/s)
+
+DifferentialDriveWheelSpeeds wheelSpeeds = m_kinematics.toWheelSpeeds(chassisSpeeds);
+// wheelSpeeds.leftMetersPerSecond
+// wheelSpeeds.rightMetersPerSecond
+```
+
+**Inverse kinematics** (chassis → wheels) handles the math:
+- Left wheel = forward - (rotation × trackWidth / 2)
+- Right wheel = forward + (rotation × trackWidth / 2)
+
+### Differential Drive Odometry
+
+Tracks robot position on the field using wheel encoders and gyro:
+
+```java
+DifferentialDriveOdometry m_odometry = new DifferentialDriveOdometry(
+    m_gyro.getRotation2d(),
+    m_leftEncoder.getDistance(),
+    m_rightEncoder.getDistance());
+
+// Update every loop (20ms)
+public void periodic() {
+  m_odometry.update(
+      m_gyro.getRotation2d(),
+      m_leftEncoder.getDistance(),
+      m_rightEncoder.getDistance());
+}
+
+// Get current position
+Pose2d currentPose = m_odometry.getPoseMeters();
+```
+
+**Pose2d** contains:
+- X position (meters)
+- Y position (meters)
+- Rotation (Rotation2d)
+
+### Field2d Visualization
+
+Displays robot position on a 2D field:
+
+```java
+Field2d m_fieldSim = new Field2d();
+
+public Drivetrain() {
+  SmartDashboard.putData("Field", m_fieldSim);
+}
+
+public void periodic() {
+  m_odometry.update(...);
+  m_fieldSim.setRobotPose(m_odometry.getPoseMeters());
+}
+```
+
+View in Glass/Shuffleboard to see the robot's position update in real-time!
+
+### Feedforward + Feedback Control
+
+Combines feedforward and PID for velocity control:
+
+```java
+SimpleMotorFeedforward m_feedforward = new SimpleMotorFeedforward(kS, kV);
+PIDController m_leftPIDController = new PIDController(kP, 0, 0);
+
+public void setSpeeds(DifferentialDriveWheelSpeeds speeds) {
+  // Feedforward: Calculate voltage needed for desired velocity
+  double leftFF = m_feedforward.calculate(speeds.leftMetersPerSecond);
+  
+  // Feedback: Correct for velocity errors
+  double leftFB = m_leftPIDController.calculate(
+      m_leftEncoder.getRate(),           // Current velocity
+      speeds.leftMetersPerSecond);       // Desired velocity
+  
+  // Combine both
+  m_leftLeader.setVoltage(leftFF + leftFB);
+}
+```
+
+### Simulation Update Loop
+
+```java
+public void simulationPeriodic() {
+  // 1. Set motor voltages as inputs
+  m_drivetrainSimulator.setInputs(
+      m_leftLeader.get() * RobotController.getInputVoltage(),
+      m_rightLeader.get() * RobotController.getInputVoltage());
+  
+  // 2. Update physics simulation (20ms)
+  m_drivetrainSimulator.update(0.02);
+  
+  // 3. Update simulated sensors
+  m_leftEncoderSim.setDistance(m_drivetrainSimulator.getLeftPositionMeters());
+  m_leftEncoderSim.setRate(m_drivetrainSimulator.getLeftVelocityMetersPerSecond());
+  m_rightEncoderSim.setDistance(m_drivetrainSimulator.getRightPositionMeters());
+  m_rightEncoderSim.setRate(m_drivetrainSimulator.getRightVelocityMetersPerSecond());
+  m_gyroSim.setAngle(-m_drivetrainSimulator.getHeading().getDegrees());
+}
+```
+
+### Slew Rate Limiters
+
+Smooth out joystick inputs to prevent jerky motion:
+
+```java
+SlewRateLimiter m_speedLimiter = new SlewRateLimiter(3);  // 3 units per second
+
+// In teleopPeriodic:
+double xSpeed = -m_speedLimiter.calculate(m_controller.getLeftY()) * kMaxSpeed;
+```
+
+This limits the rate of change, taking 1/3 second to go from 0 to full speed.
+
+### LTV Unicycle Controller
+
+Tracks trajectories for differential drives:
+
+```java
+LTVUnicycleController m_feedback = new LTVUnicycleController(0.020);
+
+// In autonomousPeriodic:
+double elapsed = m_timer.get();
+Trajectory.State reference = m_trajectory.sample(elapsed);
+ChassisSpeeds speeds = m_feedback.calculate(m_drive.getPose(), reference);
+m_drive.drive(speeds.vxMetersPerSecond, speeds.omegaRadiansPerSecond);
+```
+
+**LTV** = Linear Time-Varying controller, optimized for unicycle-like robots (differential drives).
+
+## System Identification
+
+Use the **SysId** tool to characterize your drivetrain:
+
+1. Deploy SysId project to robot
+2. Run quasistatic and dynamic tests
+3. Analyze data to get kV, kA, kVAngular, kAAngular
+4. Use these values in your simulation:
+
+```java
+LinearSystemId.identifyDrivetrainSystem(kV, kA, kVAngular, kAAngular)
+```
+
+## Running in Simulation
+
+1. Run robot simulation
+2. Open Glass or Shuffleboard
+3. Add the "Field" Field2d widget
+4. **Autonomous mode:**
+   - Robot follows generated trajectory
+   - Watch it move from (2, 2) to (6, 4) on the field
+5. **Teleop mode:**
+   - Drive with Xbox controller
+   - Observe odometry tracking on the field
+
+## What to Observe
+
+- **Odometry tracking**: Robot position updates on Field2d
+- **Trajectory following**: In autonomous, robot follows the path
+- **Smooth control**: Slew rate limiters prevent jerky motion
+- **Realistic physics**: Acceleration, inertia, and wheel slip (if configured)
+- **Sensor simulation**: Encoders and gyro update based on simulated motion
+
+## Advantages of Full Drivetrain Simulation
+
+- **Test autonomous routines** without a physical robot
+- **Visualize odometry** and catch tracking errors early
+- **Tune controllers** (feedforward and PID gains)
+- **Verify trajectory following** before competition
+- **Practice driver training** in simulation
+
+## Source Location
+
+- Java: `wpilibjExamples/src/main/java/edu/wpi/first/wpilibj/examples/simpledifferentialdrivesimulation/`
+- C++: `wpilibcExamples/src/main/cpp/examples/SimpleDifferentialDriveSimulation/`

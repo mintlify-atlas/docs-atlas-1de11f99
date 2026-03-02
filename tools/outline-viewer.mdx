@@ -1,0 +1,179 @@
+---
+title: OutlineViewer
+description: Lightweight NetworkTables viewer for debugging
+---
+
+OutlineViewer is a simple, lightweight tool for viewing and editing NetworkTables values. It provides a straightforward interface for monitoring data published by your robot program.
+
+## Overview
+
+OutlineViewer is designed as a simple NetworkTables client that displays all published topics in a tree structure. It's perfect for quick debugging sessions where you need to check or modify values without the overhead of a full dashboard.
+
+## Features
+
+- **Simple Interface**: Clean, minimalist UI focused on NetworkTables data
+- **Real-time Updates**: See values change as your robot publishes updates
+- **Edit Values**: Modify NetworkTables entries directly from the interface
+- **Connection Status**: Clear indication of connection state
+- **Logging**: Built-in logging for NetworkTables events and errors
+
+## Running OutlineViewer
+
+<Steps>
+  <Step title="Navigate to the WPILib repository">
+    Open a terminal and navigate to the root of the WPILib repository:
+    
+    ```bash
+    cd /path/to/allwpilib
+    ```
+  </Step>
+
+  <Step title="Run OutlineViewer using Gradle">
+    Execute the OutlineViewer application using the Gradle wrapper:
+    
+    ```bash
+    ./gradlew outlineviewer:run
+    ```
+    
+    On Windows:
+    
+    ```bash
+    gradlew.bat outlineviewer:run
+    ```
+  </Step>
+
+  <Step title="Connect to your robot">
+    Once OutlineViewer opens, configure the connection:
+    
+    - Access **NetworkTables Settings** from the menu
+    - Enter your robot's IP address or team number
+    - Click **Apply** to connect
+  </Step>
+</Steps>
+
+## Connection Modes
+
+OutlineViewer can operate in different NetworkTables modes:
+
+### Client Mode
+
+Connect to a robot or simulation as a NetworkTables client. This is the most common usage mode.
+
+### Server Mode
+
+Run OutlineViewer as a NetworkTables server. This is useful for:
+- Testing robot code that expects to connect to a NetworkTables server
+- Viewing data from multiple NetworkTables clients
+
+## Understanding the Interface
+
+The OutlineViewer title bar shows the current connection status:
+
+- **DISCONNECTED**: Not connected to any NetworkTables instance
+- **Connected (IP address)**: Successfully connected to a robot or server
+- **X Client(s) Connected**: Running as server with X clients connected
+
+### Topic Tree
+
+NetworkTables entries are displayed in a hierarchical tree structure based on their topic names. For example:
+
+```
+SmartDashboard/
+├── Autonomous/
+│   └── Selected
+├── DriveMotors/
+│   ├── LeftSpeed
+│   └── RightSpeed
+└── Sensors/
+    ├── Gyro
+    └── LeftEncoder
+```
+
+### Editing Values
+
+To edit a NetworkTables value:
+
+1. Locate the entry in the topic tree
+2. Click on the value field
+3. Enter the new value
+4. Press Enter to publish the change
+
+## Use Cases
+
+### Debugging
+
+Quickly check if your robot is publishing expected values:
+- Verify sensor readings
+- Monitor motor outputs
+- Check autonomous mode selection
+
+### Tuning
+
+Adjust PID constants or other tuning parameters in real-time:
+- Publish tuning values from your code
+- Modify them in OutlineViewer
+- Observe the effects immediately
+
+### Testing
+
+Simulate driver station inputs or test specific conditions:
+- Manually set values that would normally come from controls
+- Trigger specific states or modes
+- Test edge cases
+
+## NetworkTables Logging
+
+OutlineViewer includes a log viewer that displays NetworkTables system messages:
+
+- **INFO**: General information about connections and operations
+- **WARNING**: Non-critical issues that may need attention
+- **ERROR**: Errors that prevent normal operation
+- **CRITICAL**: Severe errors requiring immediate attention
+
+Access the log from the **View** menu.
+
+## Building OutlineViewer
+
+To build OutlineViewer from source:
+
+```bash
+./gradlew outlineviewer:build
+```
+
+The compiled executable will be available in the build output directory.
+
+## System Requirements
+
+- **Java Development Kit (JDK) 17** or later
+- **C++ Compiler**:
+  - Linux: GCC 11 or greater
+  - Windows: Visual Studio 2022 with C++ support
+  - macOS: Xcode 14 or later command-line tools
+
+## Comparison with Other Tools
+
+### OutlineViewer vs Glass
+
+**OutlineViewer** is lighter weight and focused solely on NetworkTables viewing and editing.
+
+**Glass** provides advanced visualization features including:
+- Field visualization
+- Camera streams
+- Hardware-specific widgets
+- Plotting capabilities
+
+### OutlineViewer vs Shuffleboard
+
+**OutlineViewer** is designed for development and debugging.
+
+**Shuffleboard** is designed for competition use with:
+- Customizable layouts
+- Widget system
+- Camera stream management
+- Competition-focused UI
+
+## Related Tools
+
+- [Glass](/tools/glass) - Advanced visualization and debugging tool
+- [Shuffleboard](/tools/shuffleboard) - Dashboard for competition
+- [SysId](/tools/sysid) - System identification tool

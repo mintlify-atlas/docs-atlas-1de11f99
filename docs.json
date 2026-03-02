@@ -1,122 +1,183 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
-  "name": "Mint Starter Kit",
+  "name": "WPILib",
+  "theme": "aspen",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#0066b3",
+    "light": "#0066b3",
+    "dark": "#0066b3"
   },
-  "favicon": "/favicon.svg",
+  "navbar": {
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/wpilibsuite/allwpilib"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/wpilibsuite/allwpilib"
+    }
+  },
   "navigation": {
     "tabs": [
       {
-        "tab": "Guides",
+        "tab": "Documentation",
         "groups": [
           {
-            "group": "Getting started",
+            "group": "Getting Started",
             "pages": [
-              "index",
-              "quickstart",
-              "development"
+              "introduction",
+              "installation",
+              "quickstart"
             ]
           },
           {
-            "group": "Customization",
+            "group": "Core Concepts",
             "pages": [
-              "essentials/settings",
-              "essentials/navigation"
+              "concepts/architecture",
+              "concepts/hardware-abstraction-layer",
+              "concepts/command-based-programming",
+              "concepts/robot-lifecycle"
             ]
           },
           {
-            "group": "Writing content",
+            "group": "Programming Guide",
             "pages": [
-              "essentials/markdown",
-              "essentials/code",
-              "essentials/images",
-              "essentials/reusable-snippets"
+              "guides/java-setup",
+              "guides/cpp-setup",
+              "guides/basic-robot-program",
+              "guides/motor-control",
+              "guides/sensors",
+              "guides/pneumatics",
+              "guides/vision"
             ]
           },
           {
-            "group": "AI tools",
+            "group": "Simulation",
             "pages": [
-              "ai-tools/cursor",
-              "ai-tools/claude-code",
-              "ai-tools/windsurf"
+              "simulation/overview",
+              "simulation/running-examples",
+              "simulation/custom-extensions",
+              "simulation/gui-tools"
+            ]
+          },
+          {
+            "group": "Advanced Topics",
+            "pages": [
+              "advanced/state-space-control",
+              "advanced/kinematics-odometry",
+              "advanced/trajectory-following",
+              "advanced/networktables",
+              "advanced/vendor-dependencies"
+            ]
+          },
+          {
+            "group": "Tools",
+            "pages": [
+              "tools/glass",
+              "tools/sysid",
+              "tools/outline-viewer",
+              "tools/shuffleboard"
             ]
           }
         ]
       },
       {
-        "tab": "API reference",
+        "tab": "API Reference",
         "groups": [
           {
-            "group": "API documentation",
+            "group": "Core Libraries",
             "pages": [
-              "api-reference/introduction"
+              "api/wpilibj/overview",
+              "api/wpilibc/overview",
+              "api/hal/overview"
             ]
           },
           {
-            "group": "Endpoint examples",
+            "group": "Math & Utilities",
             "pages": [
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete",
-              "api-reference/endpoint/webhook"
+              "api/wpimath/overview",
+              "api/wpiutil/overview",
+              "api/wpiunits/overview"
+            ]
+          },
+          {
+            "group": "Networking & Vision",
+            "pages": [
+              "api/ntcore/overview",
+              "api/wpinet/overview",
+              "api/cscore/overview",
+              "api/cameraserver/overview",
+              "api/apriltag/overview"
+            ]
+          },
+          {
+            "group": "Command Framework",
+            "pages": [
+              "api/wpilibnewcommands/overview"
+            ]
+          },
+          {
+            "group": "Simulation",
+            "pages": [
+              "api/simulation/overview"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Examples",
+        "groups": [
+          {
+            "group": "Basic Examples",
+            "pages": [
+              "examples/getting-started",
+              "examples/motor-control",
+              "examples/sensors",
+              "examples/drivetrain"
+            ]
+          },
+          {
+            "group": "Advanced Examples",
+            "pages": [
+              "examples/command-based",
+              "examples/state-space",
+              "examples/trajectory",
+              "examples/vision"
+            ]
+          },
+          {
+            "group": "Simulation Examples",
+            "pages": [
+              "examples/arm-simulation",
+              "examples/elevator-simulation",
+              "examples/differential-drive-simulation"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Contributing",
+        "groups": [
+          {
+            "group": "Development",
+            "pages": [
+              "contributing/overview",
+              "contributing/building",
+              "contributing/testing",
+              "contributing/style-guide"
+            ]
+          },
+          {
+            "group": "Resources",
+            "pages": [
+              "contributing/development-builds",
+              "contributing/maven-artifacts",
+              "contributing/generated-files"
             ]
           }
         ]
       }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
-        },
-        {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
-        }
-      ]
-    }
-  },
-  "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
-  },
-  "navbar": {
-    "links": [
-      {
-        "label": "Support",
-        "href": "mailto:hi@mintlify.com"
-      }
-    ],
-    "primary": {
-      "type": "button",
-      "label": "Dashboard",
-      "href": "https://dashboard.mintlify.com"
-    }
-  },
-  "contextual": {
-    "options": [
-     "copy",
-     "view",
-     "chatgpt",
-     "claude",
-     "perplexity",
-     "mcp",
-     "cursor",
-     "vscode"
-   ]
-  },
-  "footer": {
-    "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
-    }
+    ]
   }
 }

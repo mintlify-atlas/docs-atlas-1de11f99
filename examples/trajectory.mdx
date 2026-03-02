@@ -1,0 +1,393 @@
+---
+title: Trajectory Following Examples
+description: Path planning and trajectory following with swerve drive
+---
+
+This example demonstrates autonomous trajectory following using WPILib's trajectory generation and a swerve drive controller.
+
+## Swerve Trajectory Following
+
+<Tabs>
+  <Tab title="Java">
+    ```java
+    package edu.wpi.first.wpilibj.examples.swervecontrollercommand;
+
+    import edu.wpi.first.math.controller.PIDController;
+    import edu.wpi.first.math.controller.ProfiledPIDController;
+    import edu.wpi.first.math.geometry.Pose2d;
+    import edu.wpi.first.math.geometry.Rotation2d;
+    import edu.wpi.first.math.geometry.Translation2d;
+    import edu.wpi.first.math.trajectory.Trajectory;
+    import edu.wpi.first.math.trajectory.TrajectoryConfig;
+    import edu.wpi.first.math.trajectory.TrajectoryGenerator;
+    import edu.wpi.first.wpilibj2.command.Command;
+    import edu.wpi.first.wpilibj2.command.Commands;
+    import edu.wpi.first.wpilibj2.command.InstantCommand;
+    import edu.wpi.first.wpilibj2.command.SwerveControllerCommand;
+    import java.util.List;
+
+    public class RobotContainer {
+      private final DriveSubsystem m_robotDrive = new DriveSubsystem();
+
+      public Command getAutonomousCommand() {
+        // Create config for trajectory
+        TrajectoryConfig config =
+            new TrajectoryConfig(
+                    AutoConstants.kMaxSpeedMetersPerSecond,
+                    AutoConstants.kMaxAccelerationMetersPerSecondSquared)
+                // Add kinematics to ensure max speed is actually obeyed
+                .setKinematics(DriveConstants.kDriveKinematics);
+
+        // An example trajectory to follow. All units in meters.
+        Trajectory exampleTrajectory =
+            TrajectoryGenerator.generateTrajectory(
+                // Start at the origin facing the +X direction
+                Pose2d.kZero,
+                // Pass through these two interior waypoints, making an 's' curve path
+                List.of(new Translation2d(1, 1), new Translation2d(2, -1)),
+                // End 3 meters straight ahead of where we started, facing forward
+                new Pose2d(3, 0, Rotation2d.kZero),
+                config);
+
+        var thetaController =
+            new ProfiledPIDController(
+                AutoConstants.kPThetaController, 0, 0, AutoConstants.kThetaControllerConstraints);
+        thetaController.enableContinuousInput(-Math.PI, Math.PI);
+
+        SwerveControllerCommand swerveControllerCommand =
+            new SwerveControllerCommand(
+                exampleTrajectory,
+                m_robotDrive::getPose, // Functional interface to feed supplier
+                DriveConstants.kDriveKinematics,
+
+                // Position controllers
+                new PIDController(AutoConstants.kPXController, 0, 0),
+                new PIDController(AutoConstants.kPYController, 0, 0),
+                thetaController,
+                m_robotDrive::setModuleStates,
+                m_robotDrive);
+
+        // Reset odometry to the initial pose of the trajectory, run path following
+        // command, then stop at the end.
+        return Commands.sequence(
+            new InstantCommand(() -> m_robotDrive.resetOdometry(exampleTrajectory.getInitialPose())),
+            swerveControllerCommand,
+            new InstantCommand(() -> m_robotDrive.drive(0, 0, 0, false)));
+      }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Differential Drive Trajectory Example
+
+<Tabs>
+  <Tab title="Java">
+    ```java
+    package edu.wpi.first.wpilibj.examples.simpledifferentialdrivesimulation;
+
+    import edu.wpi.first.math.controller.LTVUnicycleController;
+    import edu.wpi.first.math.filter.SlewRateLimiter;
+    import edu.wpi.first.math.geometry.Pose2d;
+    import edu.wpi.first.math.geometry.Rotation2d;
+    import edu.wpi.first.math.kinematics.ChassisSpeeds;
+    import edu.wpi.first.math.trajectory.Trajectory;
+    import edu.wpi.first.math.trajectory.TrajectoryConfig;
+    import edu.wpi.first.math.trajectory.TrajectoryGenerator;
+    import edu.wpi.first.wpilibj.TimedRobot;
+    import edu.wpi.first.wpilibj.Timer;
+    import edu.wpi.first.wpilibj.XboxController;
+    import java.util.List;
+
+    public class Robot extends TimedRobot {
+      private final XboxController m_controller = new XboxController(0);
+
+      // Slew rate limiters to make joystick inputs more gentle; 1/3 sec from 0 to 1.
+      private final SlewRateLimiter m_speedLimiter = new SlewRateLimiter(3);
+      private final SlewRateLimiter m_rotLimiter = new SlewRateLimiter(3);
+
+      private final Drivetrain m_drive = new Drivetrain();
+      private final LTVUnicycleController m_feedback = new LTVUnicycleController(0.020);
+      private final Timer m_timer = new Timer();
+      private final Trajectory m_trajectory;
+
+      public Robot() {
+        m_trajectory =
+            TrajectoryGenerator.generateTrajectory(
+                new Pose2d(2, 2, Rotation2d.kZero),
+                List.of(),
+                new Pose2d(6, 4, Rotation2d.kZero),
+                new TrajectoryConfig(2, 2));
+      }
+
+      @Override
+      public void robotPeriodic() {
+        m_drive.periodic();
+      }
+
+      @Override
+      public void autonomousInit() {
+        m_timer.restart();
+        m_drive.resetOdometry(m_trajectory.getInitialPose());
+      }
+
+      @Override
+      public void autonomousPeriodic() {
+        double elapsed = m_timer.get();
+        Trajectory.State reference = m_trajectory.sample(elapsed);
+        ChassisSpeeds speeds = m_feedback.calculate(m_drive.getPose(), reference);
+        m_drive.drive(speeds.vxMetersPerSecond, speeds.omegaRadiansPerSecond);
+      }
+
+      @Override
+      public void teleopPeriodic() {
+        // Get the x speed. We are inverting this because Xbox controllers return
+        // negative values when we push forward.
+        double xSpeed = -m_speedLimiter.calculate(m_controller.getLeftY()) * Drivetrain.kMaxSpeed;
+
+        // Get the rate of angular rotation. We are inverting this because we want a
+        // positive value when we pull to the left (remember, CCW is positive in
+        // mathematics). Xbox controllers return positive values when you pull to
+        // the right by default.
+        double rot = -m_rotLimiter.calculate(m_controller.getRightX()) * Drivetrain.kMaxAngularSpeed;
+        m_drive.drive(xSpeed, rot);
+      }
+
+      @Override
+      public void simulationPeriodic() {
+        m_drive.simulationPeriodic();
+      }
+    }
+    ```
+  </Tab>
+  <Tab title="C++">
+    ```cpp
+    #include <frc/TimedRobot.h>
+    #include <frc/Timer.h>
+    #include <frc/XboxController.h>
+    #include <frc/controller/LTVUnicycleController.h>
+    #include <frc/filter/SlewRateLimiter.h>
+    #include <frc/trajectory/TrajectoryGenerator.h>
+
+    #include "Drivetrain.h"
+
+    class Robot : public frc::TimedRobot {
+     public:
+      Robot() {
+        m_trajectory = frc::TrajectoryGenerator::GenerateTrajectory(
+            frc::Pose2d{2_m, 2_m, 0_rad}, {}, frc::Pose2d{6_m, 4_m, 0_rad},
+            frc::TrajectoryConfig(2_mps, 2_mps_sq));
+      }
+
+      void RobotPeriodic() override { m_drive.Periodic(); }
+
+      void AutonomousInit() override {
+        m_timer.Restart();
+        m_drive.ResetOdometry(m_trajectory.InitialPose());
+      }
+
+      void AutonomousPeriodic() override {
+        auto elapsed = m_timer.Get();
+        auto reference = m_trajectory.Sample(elapsed);
+        auto speeds = m_feedback.Calculate(m_drive.GetPose(), reference);
+        m_drive.Drive(speeds.vx, speeds.omega);
+      }
+
+      void TeleopPeriodic() override {
+        const auto xSpeed = -m_speedLimiter.Calculate(m_controller.GetLeftY()) *
+                            Drivetrain::kMaxSpeed;
+
+        auto rot = -m_rotLimiter.Calculate(m_controller.GetRightX()) *
+                   Drivetrain::kMaxAngularSpeed;
+
+        m_drive.Drive(xSpeed, rot);
+      }
+
+      void SimulationPeriodic() override { m_drive.SimulationPeriodic(); }
+
+     private:
+      frc::XboxController m_controller{0};
+
+      // Slew rate limiters to make joystick inputs more gentle
+      frc::SlewRateLimiter<units::scalar> m_speedLimiter{3 / 1_s};
+      frc::SlewRateLimiter<units::scalar> m_rotLimiter{3 / 1_s};
+
+      Drivetrain m_drive;
+      frc::Trajectory m_trajectory;
+      frc::LTVUnicycleController m_feedback{20_ms};
+      frc::Timer m_timer;
+    };
+
+    #ifndef RUNNING_FRC_TESTS
+    int main() {
+      return frc::StartRobot<Robot>();
+    }
+    #endif
+    ```
+  </Tab>
+</Tabs>
+
+## What This Example Demonstrates
+
+### Trajectory Generation
+
+Create smooth paths between waypoints:
+
+```java
+Trajectory trajectory = TrajectoryGenerator.generateTrajectory(
+    Pose2d.kZero,                              // Start pose
+    List.of(                                    // Interior waypoints
+        new Translation2d(1, 1), 
+        new Translation2d(2, -1)),
+    new Pose2d(3, 0, Rotation2d.kZero),        // End pose
+    new TrajectoryConfig(2, 2));                // Max velocity, max acceleration
+```
+
+**Key points:**
+- Units are in meters and radians
+- Start and end poses include position and rotation
+- Interior waypoints are positions only
+- Config sets velocity and acceleration limits
+
+### Trajectory Configuration
+
+```java
+TrajectoryConfig config = new TrajectoryConfig(
+    maxVelocity,      // meters per second
+    maxAcceleration)  // meters per second squared
+  .setKinematics(driveKinematics)  // Enforce kinematic constraints
+  .setReversed(false);              // Drive forward or backward
+```
+
+### Swerve Controller Command
+
+Follows trajectories with a swerve drive:
+
+```java
+SwerveControllerCommand swerveControllerCommand = new SwerveControllerCommand(
+    trajectory,                          // The trajectory to follow
+    m_robotDrive::getPose,               // Pose supplier
+    DriveConstants.kDriveKinematics,    // Swerve kinematics
+    
+    // Position PID controllers
+    new PIDController(kPXController, 0, 0),  // X controller
+    new PIDController(kPYController, 0, 0),  // Y controller
+    thetaController,                          // Rotation controller (ProfiledPID)
+    
+    m_robotDrive::setModuleStates,      // Module states consumer
+    m_robotDrive);                       // Subsystem requirement
+```
+
+### ProfiledPIDController for Rotation
+
+```java
+var thetaController = new ProfiledPIDController(
+    kP, kI, kD, 
+    new TrapezoidProfile.Constraints(maxAngularVelocity, maxAngularAcceleration));
+
+// Handle angle wrap-around
+thetaController.enableContinuousInput(-Math.PI, Math.PI);
+```
+
+This ensures smooth rotation without spinning the long way around.
+
+### LTV Unicycle Controller
+
+For differential drives, use the LTV (Linear Time-Varying) controller:
+
+```java
+LTVUnicycleController controller = new LTVUnicycleController(0.020);
+
+// In periodic:
+double elapsed = timer.get();
+Trajectory.State reference = trajectory.sample(elapsed);
+ChassisSpeeds speeds = controller.calculate(currentPose, reference);
+```
+
+### Command Sequencing
+
+```java
+return Commands.sequence(
+    // Reset odometry to start of path
+    new InstantCommand(() -> m_robotDrive.resetOdometry(trajectory.getInitialPose())),
+    // Follow the trajectory
+    swerveControllerCommand,
+    // Stop when finished
+    new InstantCommand(() -> m_robotDrive.drive(0, 0, 0, false)));
+```
+
+### Odometry Reset
+
+Before following a trajectory, reset odometry to the starting pose:
+
+```java
+m_robotDrive.resetOdometry(trajectory.getInitialPose());
+```
+
+This ensures the robot knows where it is relative to the path.
+
+### Sampling Trajectories
+
+Get the desired state at a specific time:
+
+```java
+double elapsed = timer.get();
+Trajectory.State reference = trajectory.sample(elapsed);
+
+// State contains:
+// - timeSeconds: Time along trajectory
+// - velocityMetersPerSecond: Desired velocity
+// - accelerationMetersPerSecondSq: Desired acceleration
+// - poseMeters: Desired pose (position + rotation)
+// - curvatureRadPerMeter: Path curvature
+```
+
+## Trajectory Constraints
+
+### Kinematic Constraints
+
+```java
+config.setKinematics(driveKinematics);
+```
+
+Ensures the trajectory respects the robot's kinematic limits (e.g., swerve modules can't exceed max speed).
+
+### Custom Constraints
+
+Add voltage, centripetal acceleration, or other constraints:
+
+```java
+config.addConstraint(new DifferentialDriveVoltageConstraint(
+    feedforward, kinematics, maxVoltage));
+
+config.addConstraint(new CentripetalAccelerationConstraint(maxCentripetalAcceleration));
+```
+
+## Running in Simulation
+
+1. Deploy the code
+2. Open the Field2d widget in Shuffleboard/Glass
+3. Enable autonomous mode
+4. Watch the robot follow the trajectory on the field visualization
+5. Observe odometry updates in real-time
+
+## Common Issues
+
+**Robot doesn't follow path:**
+- Check odometry is being updated
+- Verify PID gains are tuned
+- Ensure motors are not inverted incorrectly
+
+**Robot overshoots waypoints:**
+- Reduce PID gains (especially kP)
+- Reduce max velocity/acceleration
+
+**Jerky motion:**
+- Check kinematic constraints match robot capabilities
+- Verify trajectory is being sampled correctly
+
+## Source Location
+
+- Java Swerve: `wpilibjExamples/src/main/java/edu/wpi/first/wpilibj/examples/swervecontrollercommand/`
+- Java Differential: `wpilibjExamples/src/main/java/edu/wpi/first/wpilibj/examples/simpledifferentialdrivesimulation/`
+- C++: `wpilibcExamples/src/main/cpp/examples/SimpleDifferentialDriveSimulation/`

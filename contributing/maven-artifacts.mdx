@@ -1,0 +1,285 @@
+---
+title: Maven Artifacts Guide
+description: Understanding WPILib's Maven artifact structure and repositories
+---
+
+WPILib publishes its built artifacts to Maven repositories for use by downstream projects. This guide explains the repository locations, artifact naming conventions, classifiers, and dependency structure.
+
+## Repositories
+
+WPILib provides two primary repositories:
+
+### Release Repository
+
+```
+https://frcmaven.wpi.edu/artifactory/release/
+```
+
+The release repository is where official WPILib releases are published.
+
+### Development Repository
+
+```
+https://frcmaven.wpi.edu/artifactory/development/
+```
+
+The development repository is where development releases of every commit to [main](https://github.com/wpilibsuite/allwpilib/tree/main) are published.
+
+## Artifact Types
+
+WPILib provides two base types of artifacts: Java artifacts and native (C++) artifacts.
+
+### Java Artifacts
+
+Java artifacts are usually published as `jar` files:
+
+- **Base artifact**: No classifier - contains the compiled Java classes
+- **Sources**: `-sources` classifier - contains the source code
+- **Javadocs**: `-javadoc` classifier - contains the generated Javadoc
+
+Java artifacts are published with the base artifact name as their artifact ID, with a `-java` extension.
+
+**Example:**
+```
+edu.wpi.first.wpilibj:wpilibj-java:version
+```
+
+### Native (C++) Artifacts
+
+Native artifacts are usually published as `zip` files:
+
+- **Sources**: `-sources` classifier - contains the source code
+- **Headers**: `-headers` classifier - contains the header files
+- **Platform binaries**: Platform-specific classifier (e.g., `windowsx86-64`) - contains binaries for that platform
+
+#### Platform Classifiers
+
+Platform classifiers use the format `{os}{arch}` with optional suffixes:
+
+- **Static libraries**: Append `static` to the classifier
+- **Debug builds**: Append `debug` to the classifier
+
+**Example classifiers:**
+- `windowsx86-64` - Windows x86-64 shared library (release)
+- `windowsx86-64static` - Windows x86-64 static library (release)
+- `windowsx86-64staticdebug` - Windows x86-64 static library (debug)
+- `linuxx86-64` - Linux x86-64 shared library
+- `osxuniversal` - macOS universal binary
+
+The full list of supported platforms can be found in [native-utils](https://github.com/wpilibsuite/native-utils/blob/main/src/main/java/edu/wpi/first/nativeutils/WPINativeUtilsExtension.java#L94).
+
+<Note>
+  Platform binary artifacts never contain headers. You always need the `-headers` classifier to get those.
+</Note>
+
+Native artifacts are published with the base artifact name as their artifact ID, with a `-cpp` extension.
+
+**Examples:**
+```
+edu.wpi.first.wpimath:wpimath-cpp:version:classifier@zip
+edu.wpi.first.wpimath:wpimath-cpp:version:windowsx86-64staticdebug@zip
+```
+
+### JNI Components
+
+If a library has both Java and C++ components with JNI, the native artifact will have a shared library containing JNI entrypoints alongside the C++ shared library. This JNI shared library will have a `jni` suffix in the file name.
+
+## Provided Artifacts
+
+All artifacts are based at `edu.wpi.first.artifactname` in the repository.
+
+### Core Libraries
+
+#### wpiutil
+```
+edu.wpi.first.wpiutil:wpiutil-java
+edu.wpi.first.wpiutil:wpiutil-cpp
+```
+Base utility library with no dependencies.
+
+#### wpimath
+```
+edu.wpi.first.wpimath:wpimath-java
+edu.wpi.first.wpimath:wpimath-cpp
+```
+Dependencies:
+- wpiutil
+
+#### wpinet
+```
+edu.wpi.first.wpinet:wpinet-java
+edu.wpi.first.wpinet:wpinet-cpp
+```
+Dependencies:
+- wpiutil
+
+#### wpiunits
+```
+edu.wpi.first.wpiunits:wpiunits-java
+edu.wpi.first.wpiunits:wpiunits-cpp
+```
+No dependencies.
+
+### Networking
+
+#### ntcore
+```
+edu.wpi.first.ntcore:ntcore-java
+edu.wpi.first.ntcore:ntcore-cpp
+```
+Dependencies:
+- wpiutil
+- wpinet
+
+### Hardware Abstraction
+
+#### hal
+```
+edu.wpi.first.hal:hal-java
+edu.wpi.first.hal:hal-cpp
+```
+Dependencies:
+- wpiutil
+
+### Vision
+
+#### cscore
+```
+edu.wpi.first.cscore:cscore-java
+edu.wpi.first.cscore:cscore-cpp
+```
+Dependencies:
+- opencv
+- wpinet
+- wpiutil
+
+#### cameraserver
+```
+edu.wpi.first.cameraserver:cameraserver-java
+edu.wpi.first.cameraserver:cameraserver-cpp
+```
+Dependencies:
+- ntcore
+- cscore
+- opencv
+- wpinet
+- wpiutil
+
+#### apriltag
+```
+edu.wpi.first.apriltag:apriltag-java
+edu.wpi.first.apriltag:apriltag-cpp
+```
+Dependencies:
+- wpiutil
+- wpimath
+
+### Robot Libraries
+
+#### wpilibj (Java)
+```
+edu.wpi.first.wpilibj:wpilibj-java
+```
+Dependencies:
+- hal
+- cameraserver
+- ntcore
+- cscore
+- wpinet
+- wpiutil
+
+#### wpilibc (C++)
+```
+edu.wpi.first.wpilibc:wpilibc-cpp
+```
+Dependencies:
+- hal
+- cameraserver
+- ntcore
+- cscore
+- wpimath
+- wpinet
+- wpiutil
+
+#### wpilibNewCommands
+```
+edu.wpi.first.wpilibNewCommands:wpilibNewCommands-java
+edu.wpi.first.wpilibNewCommands:wpilibNewCommands-cpp
+```
+Dependencies:
+- wpilibc (C++) or wpilibj (Java)
+- hal
+- cameraserver
+- ntcore
+- cscore
+- wpimath
+- wpinet
+- wpiutil
+
+### GUI Libraries
+
+#### wpigui
+```
+edu.wpi.first.wpigui:wpigui-cpp
+```
+Dependencies:
+- imgui
+
+#### glass/libglass
+```
+edu.wpi.first.glass:libglass
+```
+Dependencies:
+- wpiutil
+- wpimath
+- wpigui
+
+#### glass/libglassnt
+```
+edu.wpi.first.glass:libglassnt
+```
+Dependencies:
+- wpiutil
+- wpinet
+- ntcore
+- wpimath
+- wpigui
+
+#### halsim
+```
+edu.wpi.first.halsim:halsim
+```
+Dependencies:
+- wpiutil
+- wpinet
+- ntcore
+- wpimath
+- wpigui
+- libglass
+- libglassnt
+
+## Third Party Artifacts
+
+WPILib provides builds of the following third-party software.
+
+All third-party artifacts are based at `edu.wpi.first.thirdparty.frcYEAR` in the repository.
+
+- **apriltaglib** - AprilTag detection library
+- **googletest** - Google Test framework
+- **imgui** - Dear ImGui graphical interface library
+- **opencv** - OpenCV computer vision library
+- **libssh** - SSH library
+
+## Dependency Order for C++ Static Linking
+
+When building with static dependencies in C++, the listed order in each artifact section should be the link order in your linker.
+
+<Warning>
+  For C++ projects using static linking, ensure dependencies are linked in the correct order to avoid linker errors.
+</Warning>
+
+## Next Steps
+
+- [Use development builds](/contributing/development-builds)
+- [Build WPILib from source](/contributing/building)
+- [Learn about the contribution process](/contributing/overview)

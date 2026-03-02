@@ -1,0 +1,404 @@
+---
+title: Simulation GUI Tools
+description: Using the WPILib simulation GUI to visualize and control robot hardware
+---
+
+The `halsim_gui` extension provides a powerful graphical interface for visualizing robot hardware, controlling inputs, and monitoring outputs during simulation.
+
+## Starting the GUI
+
+The simulation GUI automatically launches when you run examples or robot programs in simulation mode, provided the `halsim_gui` extension is enabled (which it is by default).
+
+```bash
+# GUI launches automatically
+./gradlew wpilibcExamples:runElevatorSimulation
+./gradlew wpilibjExamples:runStateSpaceArm
+```
+
+## GUI Overview
+
+When the simulation GUI opens, you'll see:
+
+- **Window title**: "Robot Simulation"
+- **Default size**: 1280x720 pixels
+- **Docking enabled**: Shift+drag to dock windows
+- **Main menu bar**: Access to Hardware, NetworkTables, DS, Plot, and Window menus
+
+### GUI Architecture
+
+The GUI is built using:
+
+- **ImGui**: Immediate mode GUI framework
+- **Glass**: WPILib's visualization library
+- **wpigui**: WPILib's GUI framework wrapper
+
+Configuration is automatically saved to the `simgui` storage location.
+
+## Hardware Menu
+
+The Hardware menu provides access to all simulated hardware devices.
+
+### Available Hardware Windows
+
+- **Accelerometer**: Built-in and external accelerometers
+- **Addressable LED**: LED strip visualization and control
+- **Analog Gyro**: Gyroscope simulation
+- **Analog Input**: Analog sensor inputs
+- **Analog Output**: Analog outputs
+- **DIO (Digital I/O)**: Digital input/output pins
+- **Encoder**: Quadrature encoder simulation
+- **Joystick**: Joystick/controller input simulation
+- **PCM (Pneumatics Control Module)**: Compressor and solenoid control
+- **PH (Pneumatic Hub)**: REV Pneumatic Hub simulation
+- **Power Distribution**: Power distribution panel monitoring
+- **PWM**: PWM motor controller outputs
+- **Relay**: Relay outputs (spike, victor, etc.)
+- **RoboRIO**: roboRIO system information
+- **Solenoids**: Consolidated solenoid view
+
+### Using Hardware Windows
+
+Each hardware window shows:
+
+1. **Device list**: All initialized devices of that type
+2. **Input controls**: Sliders, checkboxes, or text fields for inputs
+3. **Output displays**: Read-only values showing robot outputs
+4. **Connection status**: Whether the device is initialized
+
+<Note>
+Hardware windows only appear for devices that your robot code has initialized. If you don't see a device, make sure your code creates an instance of it.
+</Note>
+
+## Driver Station (DS) Menu
+
+Control robot state and view Driver Station information.
+
+### DS Controls
+
+- **Robot State**: Enable/disable robot in TeleOp, Autonomous, or Test mode
+- **E-Stop**: Emergency stop button
+- **FMS**: Simulate Field Management System connection
+- **Alliance**: Set red or blue alliance
+- **Station**: Set driver station position (1, 2, or 3)
+- **Game Data**: Send game-specific data to robot
+- **Match Time**: Control match timer
+
+### Joystick Simulation
+
+The DS window includes joystick/gamepad simulation:
+
+- **Keyboard mapping**: Use keyboard as a virtual joystick
+- **Axis controls**: Sliders for analog axes
+- **Button controls**: Checkboxes for buttons
+- **POV/D-pad**: Directional pad control
+
+## NetworkTables Menu
+
+View and edit NetworkTables values in real-time.
+
+### NetworkTables Features
+
+- **Tree view**: Hierarchical display of all tables and entries
+- **Value editing**: Click to edit number, string, and boolean values
+- **Type indicators**: Icons show value types
+- **Auto-refresh**: Values update automatically
+- **Search**: Filter entries by name
+
+### Publishing Custom Data
+
+Robot code can publish data for GUI visualization:
+
+```cpp
+#include <frc/smartdashboard/SmartDashboard.h>
+
+frc::SmartDashboard::PutNumber("Elevator Height", height);
+frc::SmartDashboard::PutBoolean("At Setpoint", atSetpoint);
+frc::SmartDashboard::PutString("Current State", stateName);
+```
+
+These values appear in the NetworkTables window under `SmartDashboard/`.
+
+## Plot Menu
+
+Create real-time plots of numeric values.
+
+### Creating Plots
+
+<Steps>
+  <Step title="Select Data Source">
+    In the Plot menu, choose a NetworkTables numeric entry or HAL data source.
+  </Step>
+  
+  <Step title="Configure Plot">
+    - Set Y-axis range (auto or manual)
+    - Choose line color
+    - Set update rate
+  </Step>
+  
+  <Step title="View Plot">
+    The plot window shows a scrolling graph of the value over time.
+  </Step>
+</Steps>
+
+### Plot Controls
+
+- **Pause All Plots**: Freeze all plot updates
+- **Clear**: Reset plot data
+- **Export**: Save plot data to CSV
+- **Zoom**: Scroll wheel to zoom, drag to pan
+
+## Window Menu
+
+Manage open windows and layouts.
+
+### Window Management
+
+- **List of windows**: Checkboxes to show/hide each window
+- **Reset Layout**: Restore default window positions
+- **Save Layout**: Save current arrangement
+- **Load Layout**: Restore saved arrangement
+
+## Docking System
+
+The GUI uses ImGui's docking system for flexible layouts:
+
+### How to Dock Windows
+
+<Steps>
+  <Step title="Enable Docking">
+    Hold **Shift** while dragging a window.
+  </Step>
+  
+  <Step title="Drag to Target">
+    Drag the window over another window or the main viewport.
+  </Step>
+  
+  <Step title="Choose Position">
+    Blue indicators show where the window will dock. Release to dock.
+  </Step>
+</Steps>
+
+### Docking Positions
+
+- **Center**: Create tabbed windows
+- **Top/Bottom/Left/Right**: Split the space
+- **Outside**: Dock to main window edges
+
+## Simulating Common Scenarios
+
+### Example: Testing an Elevator
+
+<Steps>
+  <Step title="Open Hardware Windows">
+    Open Hardware > Encoder and Hardware > PWM
+  </Step>
+  
+  <Step title="Enable Robot">
+    In the DS window, click "TeleOp" and "Enable"
+  </Step>
+  
+  <Step title="Control Elevator">
+    Use joystick simulation to send commands
+  </Step>
+  
+  <Step title="Monitor Feedback">
+    Watch encoder counts and motor speeds update in real-time
+  </Step>
+  
+  <Step title="Plot Data">
+    Create plots of encoder position and motor output
+  </Step>
+</Steps>
+
+### Example: Testing Autonomous
+
+<Steps>
+  <Step title="Set Alliance and Position">
+    In DS window, set your alliance color and station
+  </Step>
+  
+  <Step title="Enter Autonomous">
+    Click "Autonomous" and "Enable"
+  </Step>
+  
+  <Step title="Monitor Outputs">
+    Watch motor speeds, solenoid states, and sensor values
+  </Step>
+  
+  <Step title="Verify Behavior">
+    Confirm robot behaves as expected for the autonomous routine
+  </Step>
+</Steps>
+
+## GUI Extension API
+
+Other simulation extensions can integrate with the GUI.
+
+### Registering with GUI
+
+Custom extensions can add GUI elements:
+
+```cpp
+#include "HALSimGuiExt.h"
+
+// Register initialization callback
+HAL_RegisterExtension(
+    HALSIMGUI_EXT_ADDGUIINIT,
+    reinterpret_cast<void*>((AddGuiInitFn)&MyGuiInit));
+
+void MyGuiInit() {
+  // Add custom GUI initialization
+}
+```
+
+### Available Extension Points
+
+- **HALSIMGUI_EXT_ADDGUIINIT**: Run during GUI initialization
+- **HALSIMGUI_EXT_ADDGUILATEEXECUTE**: Run after main GUI update
+- **HALSIMGUI_EXT_ADDGUIEARLYEXECUTE**: Run before main GUI update
+- **HALSIMGUI_EXT_GUIEXIT**: Run during GUI shutdown
+- **HALSIMGUI_EXT_GETGUICONTEXT**: Get wpigui context pointer
+- **HALSIMGUI_EXT_GETGLASSCONTEXT**: Get Glass context pointer
+- **HALSIMGUI_EXT_GETIMGUICONTEXT**: Get ImGui context pointer
+
+### Creating Custom Windows
+
+Add custom visualization windows:
+
+```cpp
+HALSimGui::halProvider->RegisterView(
+    "My Custom View",
+    "MyModel",
+    [](glass::Model* model) { return true; }, // Visibility check
+    [](glass::Window* win, glass::Model* model) {
+      win->SetDefaultPos(100, 100);
+      win->SetDefaultSize(400, 300);
+      return glass::MakeFunctionView([=] {
+        ImGui::Text("My custom visualization");
+        // Add custom ImGui elements here
+      });
+    });
+```
+
+## Configuration Files
+
+GUI settings are saved to `simgui.json` in your project directory:
+
+```json
+{
+  "HALProvider": {
+    "Encoders": {
+      "window": {
+        "visible": true
+      }
+    }
+  },
+  "Plot": {
+    "Plot[0]": {
+      "plots": [
+        {
+          "series": [
+            {
+              "color": [0.0, 1.0, 0.0, 1.0],
+              "id": "NT:/SmartDashboard/Elevator Height"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
+```
+
+You can:
+
+- **Commit**: Share layouts across your team
+- **Edit manually**: Customize beyond GUI capabilities
+- **Reset**: Delete file to restore defaults
+
+## WebSocket Server Integration
+
+The `halsim_ws_server` extension works alongside the GUI to enable web-based visualization.
+
+### Configuration
+
+Configure the WebSocket server via environment variables:
+
+- **HALSIMWS_PORT**: Server port (default: 3300)
+- **HALSIMWS_URI**: WebSocket URI (default: "/wpilibws")
+- **HALSIMWS_SYSROOT**: HTML files directory (default: `./sim`)
+- **HALSIMWS_USERROOT**: User files directory (default: `./sim/user`)
+
+### Using the WebSocket Server
+
+```bash
+# Set environment variables before running
+export HALSIMWS_PORT=8080
+export HALSIMWS_SYSROOT=/path/to/web/files
+
+./gradlew runExample
+```
+
+Web clients can connect to `ws://localhost:3300/wpilibws` to receive hardware state updates.
+
+## Keyboard Shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| **Shift + Drag** | Enable window docking |
+| **Ctrl + Tab** | Cycle through docked tabs |
+| **Space** | Toggle robot enable (in DS window) |
+| **Esc** | Close focused window |
+
+## Performance Tips
+
+### Reduce Window Count
+
+Only open hardware windows you need - each window adds rendering overhead.
+
+### Limit Plot History
+
+Long plot histories consume memory. Set reasonable time windows:
+
+- **Short tests**: 10-30 seconds
+- **Long runs**: 60-120 seconds
+
+### Disable Unused Features
+
+If you don't need the GUI, disable it:
+
+```groovy
+// In build.gradle
+wpi.sim.envVar("HALSIM_EXTENSIONS", "")
+```
+
+## Troubleshooting
+
+### GUI Won't Start
+
+- **Check graphics drivers**: Update to latest version
+- **Verify extension**: Ensure `halsim_gui` is not disabled
+- **Check console**: Look for initialization errors
+
+### Hardware Not Showing
+
+- **Initialize in code**: Hardware only appears if created by robot code
+- **Check timing**: Some devices may initialize after GUI opens
+- **Refresh**: Close and reopen the hardware window
+
+### GUI Crashes or Freezes
+
+- **Update WPILib**: Use the latest version
+- **Check callbacks**: Ensure custom extensions don't block
+- **Reset config**: Delete `simgui.json` and restart
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Running Examples" icon="play" href="/simulation/running-examples">
+    Practice using the GUI with example programs
+  </Card>
+  <Card title="Custom Extensions" icon="puzzle-piece" href="/simulation/custom-extensions">
+    Create extensions that integrate with the GUI
+  </Card>
+</CardGroup>

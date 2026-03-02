@@ -1,0 +1,125 @@
+---
+title: Glass
+description: A visualization and debugging tool for robot data
+---
+
+Glass is a different kind of dashboard - a powerful visualization tool for viewing and analyzing robot data in real-time. It provides a graphical interface for monitoring NetworkTables, viewing camera streams, and visualizing robot mechanisms.
+
+## Overview
+
+Glass is built on top of the WPILib GUI framework and provides advanced visualization capabilities for robot debugging and development. It supports viewing NetworkTables data, plotting values over time, and displaying robot mechanisms with field visualizations.
+
+## Features
+
+- **NetworkTables Integration**: Connect to and visualize NetworkTables data from your robot
+- **Camera Support**: View camera streams from your robot
+- **Field Visualization**: Display robot position and mechanisms on a 2D field
+- **Real-time Plotting**: Plot sensor values and other data over time
+- **Hardware Widgets**: Visualize various hardware components including:
+  - Accelerometers
+  - Analog Gyros
+  - Analog Inputs/Outputs
+  - Digital I/O
+  - Encoders
+  - Motor Controllers
+  - And more
+
+## Running Glass
+
+<Steps>
+  <Step title="Navigate to the WPILib repository">
+    Open a terminal and navigate to the root of the WPILib repository:
+    
+    ```bash
+    cd /path/to/allwpilib
+    ```
+  </Step>
+
+  <Step title="Run Glass using Gradle">
+    Execute the Glass application using the Gradle wrapper:
+    
+    ```bash
+    ./gradlew glass:run
+    ```
+    
+    On Windows:
+    
+    ```bash
+    gradlew.bat glass:run
+    ```
+  </Step>
+
+  <Step title="Connect to your robot">
+    Once Glass opens, configure the NetworkTables connection:
+    
+    - Click on **NetworkTables** in the menu bar
+    - Select **Settings**
+    - Enter your robot's IP address or team number
+    - Click **Apply** to connect
+  </Step>
+</Steps>
+
+## Connection Modes
+
+Glass can operate in different NetworkTables modes:
+
+- **Client Mode**: Connect to a robot or simulation as a NetworkTables client
+- **Server Mode**: Run as a NetworkTables server (useful for testing)
+
+The title bar shows the connection status:
+- **DISCONNECTED**: Not connected to any NetworkTables instance
+- **Connected (IP)**: Connected to a robot or server
+- **X Client(s) Connected**: Running as a server with X clients
+
+## Using Glass with Simulation
+
+Glass works seamlessly with robot simulation. When running your robot code in simulation, Glass can connect to visualize:
+
+- Simulated sensor values
+- Robot position on the field
+- Camera feeds
+- NetworkTables data
+
+## Building Glass
+
+To build Glass from source:
+
+```bash
+./gradlew glass:build
+```
+
+The compiled executable will be available in the build output directory.
+
+## Key Components
+
+### NetworkTables Viewer
+
+The main NetworkTables viewer shows all published topics and their values. You can:
+- Browse the topic hierarchy
+- View and edit values
+- Monitor value changes in real-time
+
+### Plot Windows
+
+Create plot windows to visualize data over time:
+- Add multiple data sources to a single plot
+- Adjust time ranges and scales
+- Pause and resume data collection
+
+### Field View
+
+Visualize your robot's position and mechanisms on a standard FRC field using the field images included with WPILib.
+
+## System Requirements
+
+- **Java Development Kit (JDK) 17** or later
+- **C++ Compiler**:
+  - Linux: GCC 11 or greater
+  - Windows: Visual Studio 2022 with C++ support
+  - macOS: Xcode 14 or later command-line tools
+
+## Related Tools
+
+- [OutlineViewer](/tools/outline-viewer) - Lightweight NetworkTables viewer
+- [Shuffleboard](/tools/shuffleboard) - Dashboard for competition use
+- [SysId](/tools/sysid) - System identification tool

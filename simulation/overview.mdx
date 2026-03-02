@@ -1,0 +1,148 @@
+---
+title: Simulation Overview
+description: Overview of WPILib's robot simulation capabilities and HALSIM extension system
+---
+
+WPILib provides a comprehensive simulation framework that allows you to test and develop robot programs without physical hardware. The simulation system is built around dynamically loaded libraries called **simulation extensions** (also known as HALSIM extensions, simulation plugins, or simulation modules).
+
+## What is Simulation?
+
+Simulation enables you to:
+
+- Test robot code on your development computer
+- Develop and debug without access to robot hardware
+- Validate control algorithms before deployment
+- Run automated tests in CI/CD pipelines
+- Visualize robot behavior through GUI tools
+
+## HALSIM Extension System
+
+The simulation framework uses a modular extension system where each extension is a dynamically loaded library that can register callbacks to update HAL (Hardware Abstraction Layer) data.
+
+### How Extensions Work
+
+The robot program loads simulation extensions by reading the `HALSIM_EXTENSIONS` environment variable, which contains paths to extension libraries:
+
+- **Linux/Mac**: Paths separated by colons (`:`)
+- **Windows**: Paths separated by semicolons (`;`)
+
+Each extension provides simulated hardware functionality, from basic I/O to complex devices.
+
+### Extension Entry Point
+
+All simulation extensions must implement the `HALSIM_InitExtension()` function as their entry point:
+
+```cpp
+extern "C" {
+#if defined(WIN32) || defined(_WIN32)
+__declspec(dllexport)
+#endif
+int HALSIM_InitExtension(void) {
+  // Initialize your extension here
+  return 0; // Return 0 for success, -1 for failure
+}
+}
+```
+
+The function must:
+- Be wrapped in an `extern "C"` block for C++ compatibility
+- Include `__declspec(dllexport)` on Windows platforms
+- Return `0` on successful initialization, `-1` on failure
+
+### Extension Registration
+
+Extensions can register themselves with the HAL to enable inter-extension communication:
+
+```cpp
+// Register your extension
+HAL_RegisterExtension("my_extension", dataPointer);
+
+// Listen for other extensions
+HAL_RegisterExtensionListener(nullptr, [](void*, const char* name, void* data) {
+  if (std::string_view{name} == "target_extension") {
+    // Extension was loaded, take action
+  }
+});
+```
+
+Note that registration is optional - only extensions that call `HAL_RegisterExtension` will trigger listeners.
+
+## Built-in Extensions
+
+WPILib includes several built-in simulation extensions:
+
+| Extension | Description |
+|-----------|-------------|
+| **halsim_ds_socket** | Allows the real Driver Station to control the robot program |
+| **halsim_gui** | Provides the simulation GUI for visualizing and controlling hardware |
+| **halsim_ws_client** | WebSockets client for transmitting hardware state over the network |
+| **halsim_ws_server** | WebSockets server for transmitting hardware state over the network |
+| **halsim_ws_core** | WebSockets library used by other extensions (not directly usable) |
+| **halsim_xrp** | Client supporting the XRP protocol for controlling XRP robots |
+
+## Using HALSIM Functions
+
+Extensions interact with the HAL using simulation-specific functions found in `hal/simulation`. These functions allow you to:
+
+- **Feed data into the HAL**: Update sensor values, device states, etc.
+- **Register callbacks**: Respond to HAL data changes
+- **Simulate hardware**: Implement realistic device behavior
+
+### Example: Accelerometer Data
+
+The `AccelerometerData` header provides functions to update X, Y, and Z axis values:
+
+```cpp
+#include <hal/simulation/AccelerometerData.h>
+
+int HALSIM_InitExtension(void) {
+  // Set accelerometer values
+  HALSIM_SetAccelerometerX(0, 1.0);
+  HALSIM_SetAccelerometerY(0, 0.5);
+  HALSIM_SetAccelerometerZ(0, 9.8);
+  
+  return 0;
+}
+```
+
+### Callbacks and Threading
+
+Some HALSIM functions accept callbacks that are invoked when HAL data changes. These callbacks:
+
+- Are called **synchronously** in the same thread as the robot program
+- Can cause loop overruns if they perform long operations
+- Should complete quickly to avoid blocking the main thread
+
+```cpp
+// Register a callback for I2C data
+int32_t callbackId = HALSIM_RegisterI2CReadCallback(
+    port, 
+    [](const char* name, void* param, const uint8_t* buffer, uint32_t count) {
+      // Process I2C data quickly
+    },
+    nullptr);
+```
+
+## Simulation Architecture
+
+The WPILib codebase is organized to support both real hardware and simulation:
+
+- **athena**: Code that runs on the roboRIO
+- **sim**: Code that runs on your development computer
+- **shared**: Platform-independent code shared between both
+
+This structure allows the same robot program to run in both environments with minimal changes.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Running Examples" icon="play" href="/simulation/running-examples">
+    Learn how to run example programs in simulation
+  </Card>
+  <Card title="Custom Extensions" icon="puzzle-piece" href="/simulation/custom-extensions">
+    Create your own simulation extensions
+  </Card>
+  <Card title="GUI Tools" icon="desktop" href="/simulation/gui-tools">
+    Explore the simulation GUI and visualization tools
+  </Card>
+</CardGroup>

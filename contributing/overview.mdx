@@ -1,0 +1,89 @@
+---
+title: Contributing to WPILib
+description: Guide to contributing to the WPILib project
+---
+
+Welcome to WPILib development! This guide will help you contribute to the WPILib project, whether you're fixing bugs, adding features, or improving documentation.
+
+## WPILib Mission
+
+The WPILib Mission is to enable FIRST Robotics teams to focus on writing game-specific software rather than focusing on hardware details - "raise the floor, don't lower the ceiling". We work to enable teams with limited programming knowledge and/or mentor experience to be as successful as possible, while not hampering the abilities of teams with more advanced programming capabilities.
+
+## General Contribution Rules
+
+- **Broad applicability**: Everything in the library must work for the 4000+ teams that will be using it
+- **Maintainability**: We need to be able to maintain submitted changes, even if you are no longer working on the project
+- **Multi-language support**: Excluding bug fixes, changes in one language generally need to have corresponding changes in other languages
+  - Some features, such the addition of C++23 for WPILibC or Functional Interfaces for WPILibJ, are specific to that version of WPILib only
+  - New language features added to C++ must be wrappable in Python for [RobotPy](https://github.com/robotpy)
+- **Testing**: Changes should have tests
+- **Documentation**: Code should be well documented
+  - This involves writing tutorials and/or usage guides for your submitted feature
+  - Documentation is hosted on the [WPILib docs site](https://docs.wpilib.org/)
+  - See the [frc-docs repository](https://github.com/wpilibsuite/frc-docs) for more information
+
+## What to Contribute
+
+### Bug Reports and Fixes
+
+We will generally accept bug fixes without too much question. If they are only implemented for one language, we will implement them for any other necessary languages. Bug reports are also welcome - please submit them to our [GitHub issue tracker](https://github.com/wpilibsuite/allwpilib/issues).
+
+### API Improvements
+
+While we do welcome improvements to the API, there are important rules to consider:
+
+- Features must be added to Java (WPILibJ) and C++ (WPILibC), with rare exceptions
+- During competition season, we will not merge any new feature additions to ensure API stability
+- Ask about large changes before spending time on them
+- Features that make it easier for teams with less experience to be more successful are more likely to be accepted
+- Features in WPILib should be broadly applicable to all teams - team-specific features should not be submitted
+- We are happy with the general structure of WPILib and are not interested in major rewrites
+- Backwards compatibility is very important
+
+### Hardware Support
+
+As a general rule, the library only directly supports hardware that is in the Kit of Parts. We have to be able to test sensors in hardware on the WPILib test bed, and hardware availability for teams is important.
+
+If you are a company interested in getting a sensor into the Kit of Parts, please contact FIRST directly at frcparts@firstinspires.org.
+
+## Contribution Process
+
+<Steps>
+  <Step title="Discuss in Discord (Optional)">
+    The programming discussion channel in the [Unofficial FIRST Robotics Competition Discord Server](https://discord.com/invite/frc) is a popular choice for initial discussion about ideas. Many WPILib developers are active there and the live messaging nature is well suited for initial discussion, particularly for smaller changes.
+    
+    Note: The unofficial Discord server is not a mandatory step and is not endorsed by FIRST®.
+  </Step>
+
+  <Step title="Open a GitHub Issue (Recommended)">
+    GitHub issues are another way to get initial feedback about an idea before working on an implementation. Compared to Discord, GitHub issues have much wider visibility and are better suited for serious discussions about major changes.
+    
+    Getting feedback about an idea before working on the implementation is recommended to avoid working on a change that will be rejected.
+  </Step>
+
+  <Step title="Create a Design Document (Rare)">
+    Sometimes, a change is so large that a design document is necessary to fully flesh out the details before starting on an implementation. This is done through a pull request that adds the design document (as a Markdown file) to the repository.
+    
+    This is extremely rare and is sometimes done concurrently with the implementation if the change doesn't need much debate but is large enough to require documentation.
+  </Step>
+
+  <Step title="Create a GitHub Pull Request (Mandatory)">
+    This is how you implement the changes. See the [Style Guide](/contributing/style-guide) for coding guidelines and formatting requirements.
+  </Step>
+</Steps>
+
+## Code of Conduct
+
+Please remember to follow the rules in the [code of conduct](https://github.com/wpilibsuite/allwpilib/blob/main/CODE_OF_CONDUCT.md), and behave with Gracious Professionalism.
+
+## Licensing
+
+By contributing to WPILib, you agree that your code will be distributed with WPILib, and licensed under the license for the WPILib project. You should not contribute code that you do not have permission to relicense in this manner.
+
+WPILib is licensed under the [3-clause BSD license](https://github.com/wpilibsuite/allwpilib/blob/main/LICENSE.md). This is not a copyleft license, so you should not contribute GPL-licensed code unless you have permission to relicense it.
+
+## Next Steps
+
+- [Build WPILib from source](/contributing/building)
+- [Learn about testing guidelines](/contributing/testing)
+- [Review the code style guide](/contributing/style-guide)

@@ -1,0 +1,157 @@
+---
+title: Motor Control Example
+description: Basic motor control with joystick input and encoder feedback
+---
+
+This example demonstrates:
+
+- Controlling a motor with joystick input
+- Reading encoder values
+- Converting encoder ticks to distance
+- Sending data to SmartDashboard
+
+## Complete Example
+
+<Tabs>
+  <Tab title="Java">
+    ```java
+    package edu.wpi.first.wpilibj.examples.motorcontrol;
+
+    import edu.wpi.first.wpilibj.Encoder;
+    import edu.wpi.first.wpilibj.Joystick;
+    import edu.wpi.first.wpilibj.TimedRobot;
+    import edu.wpi.first.wpilibj.motorcontrol.PWMSparkMax;
+    import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
+
+    /**
+     * This sample program shows how to control a motor using a joystick. In the operator control part
+     * of the program, the joystick is read and the value is written to the motor.
+     *
+     * Joystick analog values range from -1 to 1 and motor controller inputs also range from -1 to 1
+     * making it easy to work together.
+     *
+     * In addition, the encoder value of an encoder connected to ports 0 and 1 is consistently sent
+     * to the Dashboard.
+     */
+    public class Robot extends TimedRobot {
+      private static final int kMotorPort = 0;
+      private static final int kJoystickPort = 0;
+      private static final int kEncoderPortA = 0;
+      private static final int kEncoderPortB = 1;
+
+      private final PWMSparkMax m_motor;
+      private final Joystick m_joystick;
+      private final Encoder m_encoder;
+
+      public Robot() {
+        m_motor = new PWMSparkMax(kMotorPort);
+        m_joystick = new Joystick(kJoystickPort);
+        m_encoder = new Encoder(kEncoderPortA, kEncoderPortB);
+        // Use SetDistancePerPulse to set the multiplier for GetDistance
+        // This is set up assuming a 6 inch wheel with a 360 CPR encoder.
+        m_encoder.setDistancePerPulse((Math.PI * 6) / 360.0);
+      }
+
+      @Override
+      public void robotPeriodic() {
+        SmartDashboard.putNumber("Encoder", m_encoder.getDistance());
+      }
+
+      @Override
+      public void teleopPeriodic() {
+        m_motor.set(m_joystick.getY());
+      }
+    }
+    ```
+  </Tab>
+  <Tab title="C++">
+    ```cpp
+    #include <numbers>
+
+    #include <frc/Encoder.h>
+    #include <frc/Joystick.h>
+    #include <frc/TimedRobot.h>
+    #include <frc/motorcontrol/PWMSparkMax.h>
+    #include <frc/smartdashboard/SmartDashboard.h>
+
+    /**
+     * This sample program shows how to control a motor using a joystick. In the
+     * operator control part of the program, the joystick is read and the value is
+     * written to the motor.
+     *
+     * Joystick analog values range from -1 to 1 and motor controller inputs as
+     * range from -1 to 1 making it easy to work together.
+     *
+     * In addition, the encoder value of an encoder connected to ports 0 and 1 is
+     * consistently sent to the Dashboard.
+     */
+    class Robot : public frc::TimedRobot {
+     public:
+      void TeleopPeriodic() override { m_motor.Set(m_stick.GetY()); }
+
+      void RobotPeriodic() override {
+        frc::SmartDashboard::PutNumber("Encoder", m_encoder.GetDistance());
+      }
+
+      Robot() {
+        // Use SetDistancePerPulse to set the multiplier for GetDistance
+        // This is set up assuming a 6 inch wheel with a 360 CPR encoder.
+        m_encoder.SetDistancePerPulse((std::numbers::pi * 6) / 360.0);
+      }
+
+     private:
+      frc::Joystick m_stick{0};
+      frc::PWMSparkMax m_motor{0};
+      frc::Encoder m_encoder{0, 1};
+    };
+
+    #ifndef RUNNING_FRC_TESTS
+    int main() {
+      return frc::StartRobot<Robot>();
+    }
+    #endif
+    ```
+  </Tab>
+</Tabs>
+
+## What This Example Demonstrates
+
+### Motor Control
+
+The motor controller accepts values from -1.0 to 1.0:
+- `1.0` = full speed forward
+- `0.0` = stopped
+- `-1.0` = full speed reverse
+
+The joystick Y-axis returns values in the same range, making direct control simple.
+
+### Encoder Setup
+
+Encoders measure rotation with "counts per revolution" (CPR). To convert to distance:
+
+```java
+m_encoder.setDistancePerPulse((Math.PI * 6) / 360.0);
+```
+
+This example assumes:
+- 6-inch diameter wheel
+- 360 CPR encoder
+- Distance in inches
+
+Formula: `(π × diameter) / counts_per_revolution`
+
+### SmartDashboard
+
+`robotPeriodic()` runs in all modes (disabled, autonomous, teleop, test). This makes it perfect for updating dashboard values continuously.
+
+## Running in Simulation
+
+1. Open SmartDashboard or Shuffleboard
+2. Enable the robot in teleoperated mode
+3. Move the joystick to control the motor
+4. Watch the encoder distance value update on the dashboard
+
+## Source Location
+
+- Java: `wpilibjExamples/src/main/java/edu/wpi/first/wpilibj/examples/motorcontrol/Robot.java`
+- C++: `wpilibcExamples/src/main/cpp/examples/MotorControl/cpp/Robot.cpp`

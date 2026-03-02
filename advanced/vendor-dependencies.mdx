@@ -1,0 +1,387 @@
+---
+title: Vendor Dependencies
+description: Managing and using third-party libraries for additional robot hardware
+---
+
+Vendor dependencies (vendordeps) are JSON files that add support for third-party hardware and libraries to your robot project. They enable integration with motor controllers, sensors, and other devices from manufacturers beyond the standard WPILib hardware.
+
+## What are Vendor Dependencies?
+
+Vendor dependencies:
+- Add libraries for third-party hardware (CTRE, REV, etc.)
+- Provide APIs for advanced features
+- Include both Java and C++ implementations
+- Automatically manage dependencies and updates
+- Include native libraries for roboRIO and simulation
+
+## Vendordep File Structure
+
+A vendordep is a JSON file describing the library:
+
+```json
+{
+  "fileName": "RomiVendordep.json",
+  "name": "Romi-Vendordep",
+  "version": "1.0.0",
+  "uuid": "1010372a-b446-46f4-b229-61e53a26a7dc",
+  "frcYear": "2026",
+  "mavenUrls": [],
+  "jsonUrl": "",
+  "javaDependencies": [
+    {
+      "groupId": "edu.wpi.first.romiVendordep",
+      "artifactId": "romiVendordep-java",
+      "version": "wpilib"
+    }
+  ],
+  "jniDependencies": [],
+  "cppDependencies": [
+    {
+      "groupId": "edu.wpi.first.romiVendordep",
+      "artifactId": "romiVendordep-cpp",
+      "version": "wpilib",
+      "libName": "romiVendordep",
+      "headerClassifier": "headers",
+      "sourcesClassifier": "sources",
+      "sharedLibrary": true,
+      "skipInvalidPlatforms": true,
+      "binaryPlatforms": [
+        "linuxarm32",
+        "linuxarm64",
+        "windowsx86-64",
+        "linuxx86-64",
+        "osxuniversal"
+      ]
+    }
+  ]
+}
+```
+
+Location: `romiVendordep/RomiVendordep.json:1`
+
+## Key Vendordep Fields
+
+### Metadata
+
+- **fileName**: Name of the JSON file
+- **name**: Human-readable library name
+- **version**: Library version
+- **uuid**: Unique identifier (prevents conflicts)
+- **frcYear**: FRC season year ("2026", "2025", etc.)
+- **mavenUrls**: Repository URLs for downloading libraries
+- **jsonUrl**: URL for automatic updates
+
+### Java Dependencies
+
+```json
+"javaDependencies": [
+  {
+    "groupId": "com.vendor.library",
+    "artifactId": "library-java",
+    "version": "1.0.0"
+  }
+]
+```
+
+### C++ Dependencies
+
+```json
+"cppDependencies": [
+  {
+    "groupId": "com.vendor.library",
+    "artifactId": "library-cpp",
+    "version": "1.0.0",
+    "libName": "vendor_lib",
+    "headerClassifier": "headers",
+    "sourcesClassifier": "sources",
+    "sharedLibrary": true,
+    "skipInvalidPlatforms": true,
+    "binaryPlatforms": [
+      "linuxarm32",
+      "windowsx86-64",
+      "linuxx86-64",
+      "osxuniversal"
+    ]
+  }
+]
+```
+
+**C++ Fields:**
+- **libName**: Native library name (without platform suffix)
+- **headerClassifier**: Maven classifier for header files
+- **sharedLibrary**: Whether library is shared (.so, .dll) or static
+- **binaryPlatforms**: Supported platforms
+  - `linuxarm32`: roboRIO
+  - `linuxarm64`: roboRIO 2  
+  - `windowsx86-64`: Windows simulation
+  - `linuxx86-64`: Linux simulation
+  - `osxuniversal`: macOS simulation
+
+### JNI Dependencies
+
+Native libraries required by Java code:
+
+```json
+"jniDependencies": [
+  {
+    "groupId": "com.vendor.library",
+    "artifactId": "library-jni",
+    "version": "1.0.0",
+    "skipInvalidPlatforms": true,
+    "isJar": false,
+    "validPlatforms": [
+      "linuxarm32",
+      "linuxarm64"
+    ]
+  }
+]
+```
+
+## Installing Vendor Dependencies
+
+### Online Installation
+
+1. Open VSCode Command Palette (Ctrl+Shift+P / Cmd+Shift+P)
+2. Type "WPILib: Manage Vendor Libraries"
+3. Select "Install new libraries (online)"
+4. Enter vendor URL or select from list
+
+**Common Vendor URLs:**
+
+- **CTRE Phoenix**: `https://maven.ctr-electronics.com/release/com/ctre/phoenix/Phoenix-latest.json`
+- **REV Robotics**: `https://software-metadata.revrobotics.com/REVLib-2025.json`
+- **Kauai Labs (navX)**: `https://dev.studica.com/releases/2025/NavX.json`
+- **Playing With Fusion**: `https://www.playingwithfusion.com/frc/playingwithfusion2025.json`
+- **Redux Robotics**: `https://frcdocs.wpi.edu/en/stable/docs/software/vscode-overview/3rd-party-libraries.html`
+
+### Offline Installation
+
+1. Download vendordep JSON file
+2. Place in `vendordeps/` folder in your project
+3. Build project to download dependencies
+
+### Managing Installed Libraries
+
+View installed libraries:
+```bash
+ls vendordeps/
+```
+
+Remove a library:
+1. Command Palette → "WPILib: Manage Vendor Libraries"
+2. Select "Manage current libraries"
+3. Uncheck library to remove
+
+## Using Vendor Libraries
+
+### C++ Example (REV Robotics)
+
+```cpp
+#include <rev/CANSparkMax.h>
+
+class Robot : public frc::TimedRobot {
+public:
+    void RobotInit() override {
+        // Create SPARK MAX motor controller
+        motor = std::make_unique<rev::CANSparkMax>(
+            1,  // CAN ID
+            rev::CANSparkMax::MotorType::kBrushless
+        );
+        
+        // Configure motor
+        motor->RestoreFactoryDefaults();
+        motor->SetIdleMode(rev::CANSparkMax::IdleMode::kBrake);
+        
+        // Get encoder
+        encoder = motor->GetEncoder();
+    }
+    
+    void TeleopPeriodic() override {
+        motor->Set(joystick.GetY());
+        
+        double velocity = encoder.GetVelocity();
+        frc::SmartDashboard::PutNumber("Velocity", velocity);
+    }
+    
+private:
+    std::unique_ptr<rev::CANSparkMax> motor;
+    rev::SparkRelativeEncoder encoder{nullptr};
+};
+```
+
+### Java Example (CTRE Phoenix)
+
+```java
+import com.ctre.phoenix.motorcontrol.can.TalonFX;
+import com.ctre.phoenix.motorcontrol.TalonFXControlMode;
+
+public class Robot extends TimedRobot {
+    private TalonFX motor;
+    
+    @Override
+    public void robotInit() {
+        motor = new TalonFX(1);  // CAN ID 1
+        motor.configFactoryDefault();
+    }
+    
+    @Override
+    public void teleopPeriodic() {
+        motor.set(TalonFXControlMode.PercentOutput, joystick.getY());
+    }
+}
+```
+
+## WPILib-Provided Vendordeps
+
+WPILib includes vendordeps for specific platforms:
+
+### Romi
+
+Support for the Romi robot platform:
+
+```cpp
+#include <frc/romi/RomiMotor.h>
+#include <frc/romi/RomiGyro.h>
+
+frc::romi::RomiMotor leftMotor{0};
+frc::romi::RomiMotor rightMotor{1};
+frc::romi::RomiGyro gyro;
+```
+
+Location: `romiVendordep/RomiVendordep.json:1`
+
+### XRP
+
+Support for the XRP robot platform:
+
+```cpp
+#include <frc/xrp/XRPMotor.h>
+#include <frc/xrp/XRPGyro.h>
+
+frc::xrp::XRPMotor leftMotor{0};
+frc::xrp::XRPMotor rightMotor{1};
+frc::xrp::XRPGyro gyro;
+```
+
+Location: `xrpVendordep/XRPVendordep.json:1`
+
+## Creating Custom Vendordeps
+
+To create your own vendordep:
+
+1. **Define Metadata**:
+```json
+{
+  "fileName": "MyVendordep.json",
+  "name": "My Custom Library",
+  "version": "1.0.0",
+  "uuid": "<generate-unique-uuid>",
+  "frcYear": "2026"
+}
+```
+
+2. **Add Maven Repository**:
+```json
+"mavenUrls": [
+  "https://maven.mycompany.com/releases"
+]
+```
+
+3. **Specify Dependencies**:
+```json
+"javaDependencies": [...],
+"cppDependencies": [...],
+"jniDependencies": [...]
+```
+
+4. **Build and Publish**:
+- Build native libraries for all platforms
+- Publish to Maven repository
+- Host JSON file at public URL
+
+## Updating Vendor Libraries
+
+### Check for Updates
+
+1. Command Palette → "WPILib: Manage Vendor Libraries"
+2. Select "Check for updates (online)"
+3. Accept updates if available
+
+### Manual Update
+
+1. Download new vendordep JSON
+2. Replace file in `vendordeps/`
+3. Build project
+
+## Troubleshooting
+
+### Library Not Found
+
+**Problem**: Build fails with "Could not find library"
+
+**Solutions**:
+- Ensure internet connection (for first build)
+- Check `mavenUrls` are accessible
+- Verify platform is supported in `binaryPlatforms`
+- Try cleaning and rebuilding: `./gradlew clean build`
+
+### Version Conflicts
+
+**Problem**: Multiple libraries conflict
+
+**Solutions**:
+- Update all libraries to latest versions
+- Check vendor documentation for compatibility
+- May need to downgrade some libraries
+
+### Simulation Issues
+
+**Problem**: Vendor library doesn't work in simulation
+
+**Solutions**:
+- Check if library supports your platform (Windows/Linux/macOS)
+- Some libraries only support roboRIO hardware
+- Check vendor docs for simulation support
+
+### CAN Device Not Found
+
+**Problem**: Motor controllers not responding
+
+**Solutions**:
+- Verify CAN IDs are correct
+- Check physical CAN wiring
+- Use vendor configuration tool (Phoenix Tuner, REV Hardware Client)
+- Ensure vendordep is installed
+
+## Best Practices
+
+1. **Use Online Installation**: Ensures latest compatible version
+2. **Update Regularly**: Check for updates at start of season and before events
+3. **Vendor-Specific Tools**: Use manufacturer config tools (Phoenix Tuner, REV Client)
+4. **Read Documentation**: Each vendor has specific setup requirements
+5. **Version Consistency**: Keep vendordeps consistent across team computers
+6. **Backup Vendordeps**: Commit `vendordeps/` folder to version control
+
+## Common Vendors
+
+### Motor Controllers
+
+- **CTRE (Talon SRX, Falcon 500)**: Phoenix framework
+- **REV Robotics (SPARK MAX)**: REVLib
+- **Redux Robotics (Canandmag, Canandgyro)**: Redux API
+
+### Sensors
+
+- **Kauai Labs (navX)**: NavX navigation sensor
+- **Playing With Fusion**: Time of Flight sensors, Venom motors
+- **CTRE**: CANCoder, Pigeon IMU
+
+### Vision
+
+- **PhotonVision**: Vision processing library
+- **Limelight**: Vision camera API
+
+### Other
+
+- **PathPlanner**: Advanced path planning
+- **AdvantageKit**: Logging and replay framework

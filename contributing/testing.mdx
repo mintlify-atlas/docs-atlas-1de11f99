@@ -1,0 +1,128 @@
+---
+title: Testing Guidelines
+description: Guidelines for testing WPILib code
+---
+
+Testing is a critical part of contributing to WPILib. All changes should include appropriate tests to ensure functionality and prevent regressions.
+
+## Test Requirements
+
+- All new features should have tests
+- Bug fixes should include tests that verify the fix
+- Tests should be added for both C++ and Java implementations
+- Tests should be comprehensive enough to prevent future regressions
+
+## Running Tests
+
+### Desktop Tests
+
+The fastest way to run tests is to use the desktop test tasks:
+
+```bash
+# Test C++ code
+./gradlew testDesktopCpp
+
+# Test Java code
+./gradlew testDesktopJava
+
+# Test both C++ and Java
+./gradlew testDesktop
+```
+
+These commands build and run the tests for `wpilibc` and `wpilibj` respectively. They only build the minimum components required to run the tests.
+
+### Testing Specific Projects
+
+The `testDesktopCpp`, `testDesktopJava`, and `testDesktop` tasks are available for the following projects:
+
+- apriltag
+- cameraserver
+- cscore
+- hal
+- ntcore
+- wpilibNewCommands
+- wpimath
+- wpinet
+- wpiunits
+- wpiutil
+- romiVendordep
+- xrpVendordep
+
+<Note>
+  Replace `projectName` with the actual project name from the list above.
+</Note>
+
+Run tests for a specific project:
+
+```bash
+./gradlew :projectName:testDesktop
+```
+
+For example, to test only wpimath:
+
+```bash
+./gradlew :wpimath:testDesktop
+```
+
+## Integration Tests
+
+The integration test directories for C++ and Java contain test code that runs on the WPILib test system. When you submit code for review, it is tested by those programs.
+
+<Warning>
+  If you add new functionality, you should make sure to write tests for it so we don't break it in the future.
+</Warning>
+
+## CI/CD Testing
+
+### GitHub Actions
+
+When you first submit changes, GitHub Actions will attempt to run `./gradlew check` on your change. If this fails, you will need to fix any issues that it sees.
+
+### Full Test Suite
+
+Once Actions passes and the team approves your changes, our hosted instance will test it. This will run the full gamut of checks, including integration tests on actual hardware.
+
+## Test Organization
+
+Tests are located in the test directories of each subproject:
+
+- C++ tests: Located in `subproject/src/test/native/cpp`
+- Java tests: Located in `subproject/src/test/java`
+
+Tests should follow the same organizational structure as the code they test.
+
+## Testing Best Practices
+
+### Write Comprehensive Tests
+
+- Test normal operation
+- Test edge cases
+- Test error conditions
+- Test boundary conditions
+
+### Make Tests Maintainable
+
+- Use clear, descriptive test names
+- Keep tests focused on one thing
+- Avoid test interdependencies
+- Document complex test scenarios
+
+### Ensure Tests are Deterministic
+
+- Tests should produce the same results every time
+- Avoid relying on timing when possible
+- Clean up resources after tests
+
+## Hardware Testing
+
+For features that interact with hardware:
+
+- Simulation tests should verify the logic
+- Integration tests on the test bed verify hardware interaction
+- The WPILib team maintains a test bed with Kit of Parts hardware
+
+## Next Steps
+
+- [Review the code style guide](/contributing/style-guide)
+- [Learn about the build process](/contributing/building)
+- [Submit your changes](/contributing/overview#contribution-process)

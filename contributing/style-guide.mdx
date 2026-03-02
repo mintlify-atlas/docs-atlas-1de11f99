@@ -1,0 +1,180 @@
+---
+title: Code Style Guide
+description: Code style and formatting guidelines for WPILib contributions
+---
+
+WPILib uses modified Google style guides for both C++ and Java. All contributions must follow these style guidelines and be properly formatted.
+
+## Style Guides
+
+WPILib's style guides are maintained in the [styleguide repository](https://github.com/wpilibsuite/styleguide).
+
+Autoformatters are available for many popular editors at https://github.com/google/styleguide.
+
+<Warning>
+  Running wpiformat is required for all contributions and is enforced by our continuous integration system.
+</Warning>
+
+## Legacy Code
+
+While the library should be fully formatted according to the styles, additional elements of the style guide were not followed when the library was initially created. All new code should follow the guidelines.
+
+<Note>
+  If you are looking for some easy ramp-up tasks, finding areas that don't follow the style guide and fixing them is very welcome.
+</Note>
+
+## Formatting and Linting
+
+### wpiformat
+
+wpiformat can be executed anywhere in the repository:
+
+**Windows:**
+```bash
+py -3 -m wpiformat
+```
+
+**macOS/Linux:**
+```bash
+python3 -m wpiformat
+```
+
+See the [styleguide README](https://github.com/wpilibsuite/styleguide/blob/main/README.md) for wpiformat setup instructions.
+
+### Java Code Quality Tools
+
+The Java code quality tools Checkstyle, PMD, and Spotless can be run via:
+
+```bash
+./gradlew javaFormat
+```
+
+SpotBugs can be run via the following tasks:
+- `spotbugsMain`
+- `spotbugsTest`
+- `spotbugsDev`
+
+These tools will all be run automatically by the `build` task. To disable this behavior, pass the `-PskipJavaFormat` flag.
+
+### Java Autoformatter Only
+
+If you only want to run the Java autoformatter:
+
+```bash
+./gradlew spotlessApply
+```
+
+## CI Formatting
+
+Once a PR has been submitted, formatting can be run in CI by commenting `/format` on the PR. A new commit will be pushed with the formatting changes.
+
+<Note>
+  The `/format` action has been temporarily disabled. The individual formatting commands can be run locally as shown above. Alternately, the Lint and Format action for a PR will upload a patch file that can be downloaded and applied manually.
+</Note>
+
+## Pull Request Requirements
+
+### Format Before Submitting
+
+Ensure your code is properly formatted before submitting a pull request:
+
+<Steps>
+  <Step title="Run wpiformat">
+    Execute wpiformat to format C++ code:
+    
+    ```bash
+    python3 -m wpiformat
+    ```
+  </Step>
+
+  <Step title="Run Java formatters">
+    Execute Java formatting tools:
+    
+    ```bash
+    ./gradlew javaFormat
+    ```
+  </Step>
+
+  <Step title="Verify with build">
+    Run the build task to ensure all quality checks pass:
+    
+    ```bash
+    ./gradlew build
+    ```
+  </Step>
+
+  <Step title="Commit formatting changes">
+    If the formatters made changes, commit them:
+    
+    ```bash
+    git add .
+    git commit -m "Apply code formatting"
+    ```
+  </Step>
+</Steps>
+
+### Continuous Integration Checks
+
+When you submit a pull request, GitHub Actions will run `./gradlew check` to verify:
+
+- Code formatting compliance
+- Code quality checks (Checkstyle, PMD, SpotBugs)
+- All tests pass
+- Build succeeds
+
+If CI fails, you will need to fix any issues before the PR can be merged.
+
+## Language-Specific Guidelines
+
+### C++ Guidelines
+
+WPILib uses a modified Google C++ Style Guide. Key points:
+
+- Use `.cpp` and `.h` file extensions
+- Follow naming conventions in the style guide
+- Use modern C++ features appropriately
+- Ensure code is wrappable in Python for RobotPy
+
+### Java Guidelines
+
+WPILib uses a modified Google Java Style Guide. Key points:
+
+- Follow naming conventions in the style guide
+- Use appropriate Java language features
+- Maintain parity with C++ implementations where applicable
+
+## Generated Files
+
+WPILib uses code generation for some files. If you modify templates or regenerate files:
+
+- Run the appropriate generation script
+- Commit the generated files
+- See [Generated Files](/contributing/generated-files) for more information
+
+## Documentation Standards
+
+### Code Comments
+
+- Use clear, concise comments
+- Document public APIs thoroughly
+- Explain complex algorithms or non-obvious code
+
+### API Documentation
+
+- Java: Use Javadoc comments
+- C++: Use Doxygen comments
+- Document parameters, return values, and exceptions
+
+## Best Practices
+
+- Write clean, readable code
+- Follow the principle of least surprise
+- Maintain consistency with existing code
+- Keep backwards compatibility in mind
+- Write self-documenting code when possible
+
+## Next Steps
+
+- [Learn about generated files](/contributing/generated-files)
+- [Review testing guidelines](/contributing/testing)
+- [Submit your contribution](/contributing/overview#contribution-process)

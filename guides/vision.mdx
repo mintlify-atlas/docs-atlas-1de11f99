@@ -1,0 +1,649 @@
+---
+title: Vision Processing Guide
+description: Process camera images and detect AprilTags with WPILib
+---
+
+## Overview
+
+WPILib provides vision processing capabilities through cscore for camera streaming and the AprilTag library for fiducial marker detection. This guide covers camera setup, image processing, and AprilTag detection.
+
+## Camera Streaming (cscore)
+
+Source: `cscore/src/main/java/edu/wpi/first/cscore/UsbCamera.java:7`
+
+cscore provides low-level camera access and video streaming capabilities.
+
+### USB Camera Setup
+
+<Tabs>
+  <Tab title="Java">
+    ```java
+    import edu.wpi.first.cscore.UsbCamera;
+    import edu.wpi.first.cscore.VideoMode;
+    import edu.wpi.first.cscore.CameraServerJNI;
+    import edu.wpi.first.cameraserver.CameraServer;
+
+    public class VisionSubsystem {
+      private UsbCamera m_camera;
+
+      public VisionSubsystem() {
+        // Create USB camera by device number
+        m_camera = new UsbCamera("Driver Camera", 0);
+        
+        // Or by device path
+        // m_camera = new UsbCamera("Camera", "/dev/video0");
+        
+        // Configure camera
+        m_camera.setResolution(640, 480);
+        m_camera.setFPS(30);
+        
+        // Start automatic capture
+        CameraServer.startAutomaticCapture(m_camera);
+      }
+    }
+    ```
+  </Tab>
+
+  <Tab title="C++">
+    ```cpp
+    #include <cameraserver/CameraServer.h>
+    #include <cscore_oo.h>
+
+    class VisionSubsystem {
+     public:
+      VisionSubsystem() {
+        // Create USB camera by device number
+        m_camera = frc::CameraServer::StartAutomaticCapture(0);
+        
+        // Configure camera
+        m_camera.SetResolution(640, 480);
+        m_camera.SetFPS(30);
+      }
+
+     private:
+      cs::UsbCamera m_camera;
+    };
+    ```
+  </Tab>
+</Tabs>
+
+### Enumerate Cameras
+
+<Tabs>
+  <Tab title="Java">
+    ```java
+    import edu.wpi.first.cscore.UsbCamera;
+    import edu.wpi.first.cscore.UsbCameraInfo;
+
+    // Find all connected USB cameras
+    UsbCameraInfo[] cameras = UsbCamera.enumerateUsbCameras();
+    
+    for (UsbCameraInfo info : cameras) {
+      System.out.println("Camera: " + info.name);
+      System.out.println("Path: " + info.path);
+      System.out.println("Dev: " + info.dev);
+    }
+    ```
+  </Tab>
+
+  <Tab title="C++">
+    ```cpp
+    #include <cscore_oo.h>
+    #include <iostream>
+
+    // Find all connected USB cameras
+    auto cameras = cs::UsbCamera::EnumerateUsbCameras();
+    
+    for (const auto& info : cameras) {
+      std::cout << "Camera: " << info.name << std::endl;
+      std::cout << "Path: " << info.path << std::endl;
+      std::cout << "Dev: " << info.dev << std::endl;
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## OpenCV Integration
+
+Source: `cscore/src/main/java/edu/wpi/first/cscore/CvSink.java:14`
+
+Process camera images with OpenCV.
+
+### Capturing Frames
+
+<Tabs>
+  <Tab title="Java">
+    ```java
+    import edu.wpi.first.cscore.CvSink;
+    import edu.wpi.first.cscore.CvSource;
+    import edu.wpi.first.cscore.UsbCamera;
+    import edu.wpi.first.cameraserver.CameraServer;
+    import org.opencv.core.Mat;
+    import org.opencv.imgproc.Imgproc;
+
+    public class VisionThread extends Thread {
+      private CvSink m_cvSink;
+      private CvSource m_outputStream;
+      private Mat m_mat;
+
+      public VisionThread() {
+        // Create camera
+        UsbCamera camera = CameraServer.startAutomaticCapture();
+        camera.setResolution(320, 240);
+        camera.setFPS(15);
+
+        // Create sink to get frames
+        m_cvSink = CameraServer.getVideo();
+        
+        // Create output stream for processed images
+        m_outputStream = CameraServer.putVideo("Processed", 320, 240);
+        
+        m_mat = new Mat();
+      }
+
+      @Override
+      public void run() {
+        while (!Thread.interrupted()) {
+          // Grab a frame (timeout 0.225 seconds)
+          long frameTime = m_cvSink.grabFrame(m_mat);
+          if (frameTime == 0) {
+            // Error occurred
+            System.err.println(m_cvSink.getError());
+            continue;
+          }
+
+          // Process the image
+          processImage(m_mat);
+          
+          // Output processed image
+          m_outputStream.putFrame(m_mat);
+        }
+      }
+
+      private void processImage(Mat image) {
+        // Convert to HSV
+        Imgproc.cvtColor(image, image, Imgproc.COLOR_BGR2HSV);
+        // Additional processing...
+      }
+    }
+    ```
+  </Tab>
+
+  <Tab title="C++">
+    ```cpp
+    #include <cameraserver/CameraServer.h>
+    #include <cscore_cv.h>
+    #include <opencv2/imgproc.hpp>
+    #include <thread>
+
+    class VisionThread {
+     public:
+      void Run() {
+        // Create camera
+        cs::UsbCamera camera = frc::CameraServer::StartAutomaticCapture();
+        camera.SetResolution(320, 240);
+        camera.SetFPS(15);
+
+        // Create sink to get frames
+        cs::CvSink cvSink = frc::CameraServer::GetVideo();
+        
+        // Create output stream
+        cs::CvSource outputStream = frc::CameraServer::PutVideo("Processed", 320, 240);
+        
+        cv::Mat mat;
+
+        while (true) {
+          // Grab a frame
+          uint64_t frameTime = cvSink.GrabFrame(mat);
+          if (frameTime == 0) {
+            // Error occurred
+            std::cerr << cvSink.GetError() << std::endl;
+            continue;
+          }
+
+          // Process the image
+          ProcessImage(mat);
+          
+          // Output processed image
+          outputStream.PutFrame(mat);
+        }
+      }
+
+     private:
+      void ProcessImage(cv::Mat& image) {
+        // Convert to HSV
+        cv::cvtColor(image, image, cv::COLOR_BGR2HSV);
+        // Additional processing...
+      }
+    };
+    ```
+  </Tab>
+</Tabs>
+
+## AprilTag Detection
+
+Source: `apriltag/src/main/java/edu/wpi/first/apriltag/AprilTagDetector.java:10`
+
+AprilTags are fiducial markers used for robot localization.
+
+### Basic AprilTag Detection
+
+<Tabs>
+  <Tab title="Java">
+    ```java
+    import edu.wpi.first.apriltag.AprilTagDetector;
+    import edu.wpi.first.apriltag.AprilTagDetection;
+    import edu.wpi.first.apriltag.AprilTagPoseEstimator;
+    import org.opencv.core.Mat;
+    import org.opencv.imgproc.Imgproc;
+
+    public class AprilTagVision {
+      private AprilTagDetector m_detector;
+      private AprilTagPoseEstimator m_poseEstimator;
+
+      public AprilTagVision() {
+        // Create detector
+        m_detector = new AprilTagDetector();
+        
+        // Configure detector
+        AprilTagDetector.Config config = new AprilTagDetector.Config();
+        config.numThreads = 4;
+        config.quadDecimate = 2.0f;
+        config.refineEdges = true;
+        m_detector.setConfig(config);
+        
+        // Add tag family (tag16h5, tag36h11, etc.)
+        m_detector.addFamily("tag16h5");
+        
+        // Setup pose estimator
+        AprilTagPoseEstimator.Config poseConfig = 
+          new AprilTagPoseEstimator.Config(
+            0.1524,  // Tag size in meters (6 inches)
+            500,     // fx (camera focal length x)
+            500,     // fy (camera focal length y)
+            320,     // cx (camera center x)
+            240      // cy (camera center y)
+          );
+        m_poseEstimator = new AprilTagPoseEstimator(poseConfig);
+      }
+
+      public AprilTagDetection[] detectTags(Mat image) {
+        // Convert to grayscale if needed
+        Mat grayImage = new Mat();
+        if (image.channels() > 1) {
+          Imgproc.cvtColor(image, grayImage, Imgproc.COLOR_BGR2GRAY);
+        } else {
+          grayImage = image;
+        }
+        
+        // Detect tags
+        AprilTagDetection[] detections = m_detector.detect(grayImage);
+        
+        System.out.println("Found " + detections.length + " tags");
+        
+        for (AprilTagDetection detection : detections) {
+          System.out.println("Tag ID: " + detection.getId());
+          System.out.println("Hamming: " + detection.getHamming());
+          System.out.println("Decision Margin: " + detection.getDecisionMargin());
+          
+          // Estimate pose
+          var poseEstimate = m_poseEstimator.estimate(detection);
+          System.out.println("Pose: " + poseEstimate.pose1);
+        }
+        
+        return detections;
+      }
+
+      public void close() {
+        m_detector.close();
+      }
+    }
+    ```
+  </Tab>
+
+  <Tab title="C++">
+    ```cpp
+    #include <frc/apriltag/AprilTagDetector.h>
+    #include <frc/apriltag/AprilTagPoseEstimator.h>
+    #include <opencv2/imgproc.hpp>
+    #include <iostream>
+
+    class AprilTagVision {
+     public:
+      AprilTagVision() {
+        // Configure detector
+        frc::AprilTagDetector::Config config;
+        config.numThreads = 4;
+        config.quadDecimate = 2.0f;
+        config.refineEdges = true;
+        m_detector.SetConfig(config);
+        
+        // Add tag family
+        m_detector.AddFamily("tag16h5");
+        
+        // Setup pose estimator
+        frc::AprilTagPoseEstimator::Config poseConfig{
+          0.1524,  // Tag size in meters (6 inches)
+          500,     // fx (camera focal length x)
+          500,     // fy (camera focal length y)
+          320,     // cx (camera center x)
+          240      // cy (camera center y)
+        };
+        m_poseEstimator = frc::AprilTagPoseEstimator{poseConfig};
+      }
+
+      std::vector<frc::AprilTagDetection> DetectTags(cv::Mat& image) {
+        // Convert to grayscale if needed
+        cv::Mat grayImage;
+        if (image.channels() > 1) {
+          cv::cvtColor(image, grayImage, cv::COLOR_BGR2GRAY);
+        } else {
+          grayImage = image;
+        }
+        
+        // Detect tags
+        auto detections = m_detector.Detect(grayImage);
+        
+        std::cout << "Found " << detections.size() << " tags" << std::endl;
+        
+        for (const auto& detection : detections) {
+          std::cout << "Tag ID: " << detection.GetId() << std::endl;
+          std::cout << "Hamming: " << detection.GetHamming() << std::endl;
+          std::cout << "Decision Margin: " << detection.GetDecisionMargin() << std::endl;
+          
+          // Estimate pose
+          auto poseEstimate = m_poseEstimator.Estimate(detection);
+          // Use poseEstimate.pose1 for the estimated transform
+        }
+        
+        return detections;
+      }
+
+     private:
+      frc::AprilTagDetector m_detector;
+      frc::AprilTagPoseEstimator m_poseEstimator;
+    };
+    ```
+  </Tab>
+</Tabs>
+
+### Detector Configuration
+
+Source: `apriltag/src/main/java/edu/wpi/first/apriltag/AprilTagDetector.java:17`
+
+<Tabs>
+  <Tab title="Java">
+    ```java
+    AprilTagDetector.Config config = new AprilTagDetector.Config();
+    
+    // Number of threads (default: 1)
+    config.numThreads = 4;
+    
+    // Quad decimation - detection on lower resolution (default: 2.0)
+    // Higher values = faster but less accurate
+    config.quadDecimate = 2.0f;
+    
+    // Gaussian blur for segmentation (default: 0.0)
+    // Non-zero helps with noisy images
+    config.quadSigma = 0.0f;
+    
+    // Refine quad edges (default: true)
+    // Recommended when using decimation
+    config.refineEdges = true;
+    
+    // Decode sharpening (default: 0.25)
+    // Helps decode small tags
+    config.decodeSharpening = 0.25;
+    
+    // Debug mode - writes images to disk (default: false)
+    // Do NOT use on roboRIO!
+    config.debug = false;
+    
+    m_detector.setConfig(config);
+    ```
+  </Tab>
+
+  <Tab title="C++">
+    ```cpp
+    frc::AprilTagDetector::Config config;
+    
+    // Number of threads (default: 1)
+    config.numThreads = 4;
+    
+    // Quad decimation - detection on lower resolution (default: 2.0)
+    config.quadDecimate = 2.0f;
+    
+    // Gaussian blur for segmentation (default: 0.0)
+    config.quadSigma = 0.0f;
+    
+    // Refine quad edges (default: true)
+    config.refineEdges = true;
+    
+    // Decode sharpening (default: 0.25)
+    config.decodeSharpening = 0.25;
+    
+    // Debug mode (default: false)
+    config.debug = false;
+    
+    m_detector.SetConfig(config);
+    ```
+  </Tab>
+</Tabs>
+
+### Tag Families
+
+Add tag families to detect:
+
+<Tabs>
+  <Tab title="Java">
+    ```java
+    AprilTagDetector detector = new AprilTagDetector();
+    
+    // Most common families
+    detector.addFamily("tag16h5");   // 16h5 family (30 unique tags)
+    detector.addFamily("tag36h11");  // 36h11 family (587 unique tags)
+    
+    // Specify error correction bits (default: 2)
+    detector.addFamily("tag16h5", 1);  // Allow 1 bit correction
+    
+    // Remove a family
+    detector.removeFamily("tag16h5");
+    
+    // Clear all families
+    detector.clearFamilies();
+    ```
+  </Tab>
+
+  <Tab title="C++">
+    ```cpp
+    frc::AprilTagDetector detector;
+    
+    // Most common families
+    detector.AddFamily("tag16h5");   // 16h5 family (30 unique tags)
+    detector.AddFamily("tag36h11");  // 36h11 family (587 unique tags)
+    
+    // Specify error correction bits (default: 2)
+    detector.AddFamily("tag16h5", 1);  // Allow 1 bit correction
+    
+    // Remove a family
+    detector.RemoveFamily("tag16h5");
+    
+    // Clear all families
+    detector.ClearFamilies();
+    ```
+  </Tab>
+</Tabs>
+
+## Complete Vision Pipeline
+
+<Tabs>
+  <Tab title="Java">
+    ```java
+    import edu.wpi.first.cscore.CvSink;
+    import edu.wpi.first.cscore.CvSource;
+    import edu.wpi.first.cscore.UsbCamera;
+    import edu.wpi.first.cameraserver.CameraServer;
+    import edu.wpi.first.apriltag.AprilTagDetector;
+    import edu.wpi.first.apriltag.AprilTagDetection;
+    import org.opencv.core.Mat;
+    import org.opencv.core.Scalar;
+    import org.opencv.imgproc.Imgproc;
+
+    public class VisionPipeline extends Thread {
+      private final CvSink m_cvSink;
+      private final CvSource m_outputStream;
+      private final AprilTagDetector m_detector;
+      private final Mat m_mat;
+      private final Mat m_grayMat;
+
+      public VisionPipeline() {
+        // Setup camera
+        UsbCamera camera = CameraServer.startAutomaticCapture();
+        camera.setResolution(640, 480);
+        camera.setFPS(30);
+
+        m_cvSink = CameraServer.getVideo();
+        m_outputStream = CameraServer.putVideo("AprilTags", 640, 480);
+
+        // Setup AprilTag detector
+        m_detector = new AprilTagDetector();
+        m_detector.addFamily("tag16h5");
+
+        m_mat = new Mat();
+        m_grayMat = new Mat();
+      }
+
+      @Override
+      public void run() {
+        while (!Thread.interrupted()) {
+          if (m_cvSink.grabFrame(m_mat) == 0) {
+            continue;
+          }
+
+          // Convert to grayscale
+          Imgproc.cvtColor(m_mat, m_grayMat, Imgproc.COLOR_BGR2GRAY);
+
+          // Detect tags
+          AprilTagDetection[] detections = m_detector.detect(m_grayMat);
+
+          // Draw detections
+          for (AprilTagDetection detection : detections) {
+            var corners = detection.getCorners();
+            
+            // Draw lines between corners
+            for (int i = 0; i < 4; i++) {
+              var pt1 = corners[i];
+              var pt2 = corners[(i + 1) % 4];
+              Imgproc.line(m_mat, pt1, pt2, new Scalar(0, 255, 0), 2);
+            }
+            
+            // Draw ID
+            Imgproc.putText(m_mat, 
+              "ID: " + detection.getId(),
+              corners[0],
+              Imgproc.FONT_HERSHEY_SIMPLEX,
+              1.0,
+              new Scalar(0, 255, 0),
+              2
+            );
+          }
+
+          m_outputStream.putFrame(m_mat);
+        }
+      }
+    }
+    ```
+  </Tab>
+
+  <Tab title="C++">
+    ```cpp
+    #include <cameraserver/CameraServer.h>
+    #include <cscore_cv.h>
+    #include <frc/apriltag/AprilTagDetector.h>
+    #include <opencv2/imgproc.hpp>
+    #include <thread>
+
+    class VisionPipeline {
+     public:
+      void Run() {
+        // Setup camera
+        cs::UsbCamera camera = frc::CameraServer::StartAutomaticCapture();
+        camera.SetResolution(640, 480);
+        camera.SetFPS(30);
+
+        cs::CvSink cvSink = frc::CameraServer::GetVideo();
+        cs::CvSource outputStream = frc::CameraServer::PutVideo("AprilTags", 640, 480);
+
+        // Setup AprilTag detector
+        frc::AprilTagDetector detector;
+        detector.AddFamily("tag16h5");
+
+        cv::Mat mat;
+        cv::Mat grayMat;
+
+        while (true) {
+          if (cvSink.GrabFrame(mat) == 0) {
+            continue;
+          }
+
+          // Convert to grayscale
+          cv::cvtColor(mat, grayMat, cv::COLOR_BGR2GRAY);
+
+          // Detect tags
+          auto detections = detector.Detect(grayMat);
+
+          // Draw detections
+          for (const auto& detection : detections) {
+            auto corners = detection.GetCorners();
+            
+            // Draw lines between corners
+            for (int i = 0; i < 4; i++) {
+              auto pt1 = corners[i];
+              auto pt2 = corners[(i + 1) % 4];
+              cv::line(mat, pt1, pt2, cv::Scalar(0, 255, 0), 2);
+            }
+            
+            // Draw ID
+            cv::putText(mat,
+              "ID: " + std::to_string(detection.GetId()),
+              corners[0],
+              cv::FONT_HERSHEY_SIMPLEX,
+              1.0,
+              cv::Scalar(0, 255, 0),
+              2
+            );
+          }
+
+          outputStream.PutFrame(mat);
+        }
+      }
+    };
+    ```
+  </Tab>
+</Tabs>
+
+## Best Practices
+
+- **Run vision on separate thread** - Don't block robot periodic loop
+- **Use appropriate resolution** - Lower resolution = faster processing
+- **Tune decimation** - Balance speed vs accuracy with quadDecimate
+- **Process in grayscale** - AprilTag detection requires grayscale images
+- **Monitor CPU usage** - Vision processing is computationally intensive
+- **Use multiple threads** - Configure numThreads for detector
+- **Test lighting conditions** - Ensure consistent lighting for detection
+- **Stream processed images** - Use CvSource to debug vision pipeline
+
+## Performance Tips
+
+- Lower camera resolution (320x240 vs 640x480)
+- Increase quad decimation (3.0-4.0 for fast detection)
+- Reduce frame rate if not needed
+- Use fewer threads on roboRIO (2-3 max)
+- Disable debug mode in production
+- Stream only when needed (shuffleboard connected)
+
+## Next Steps
+
+- [Motor Control](/guides/motor-control) - Control motors with vision feedback
+- [Sensors](/guides/sensors) - Combine vision with other sensors
+- [Basic Robot Program](/guides/basic-robot-program) - Integrate vision into robot code

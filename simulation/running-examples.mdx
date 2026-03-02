@@ -1,0 +1,225 @@
+---
+title: Running Examples in Simulation
+description: How to run WPILib example programs in simulation mode
+---
+
+WPILib includes numerous example programs that can be run in simulation mode, allowing you to explore features and test concepts without robot hardware.
+
+## Running C++ Examples
+
+C++ examples are located in the `wpilibcExamples` project and can be run using Gradle.
+
+### Basic Command
+
+```bash
+./gradlew wpilibcExamples:run<ExampleName>
+```
+
+Replace `<ExampleName>` with the name of the example's folder (in PascalCase). For example:
+
+```bash
+./gradlew wpilibcExamples:runElevatorSimulation
+./gradlew wpilibcExamples:runStateSpaceArm
+./gradlew wpilibcExamples:runSwerveBot
+```
+
+### Available C++ Examples
+
+Some popular simulation-ready examples include:
+
+- **ElevatorSimulation**: Simulated elevator mechanism with physics
+- **ArmSimulation**: Simulated arm mechanism with state-space control
+- **StateSpaceArm**: Advanced arm control using state-space methods
+- **StateSpaceElevator**: Advanced elevator control
+- **StateSpaceFlywheel**: Flywheel simulation with state-space control
+- **SimpleDifferentialDriveSimulation**: Basic differential drive simulation
+- **SwerveBot**: Swerve drive kinematics example
+- **RamseteCommand**: Path following with RAMSETE controller
+- **MecanumControllerCommand**: Mecanum drive trajectory following
+
+## Running Java Examples
+
+Java examples are located in the `wpilibjExamples` project with a similar command structure.
+
+### Basic Command
+
+```bash
+./gradlew wpilibjExamples:run<ExampleName>
+```
+
+For example:
+
+```bash
+./gradlew wpilibjExamples:runElevatorSimulation
+./gradlew wpilibjExamples:runStateSpaceArm
+./gradlew wpilibjExamples:runSwerveBot
+```
+
+## What Happens When You Run
+
+<Steps>
+  <Step title="Build the Example">
+    Gradle compiles the example program and all dependencies.
+  </Step>
+  
+  <Step title="Load Extensions">
+    The simulation framework loads configured HALSIM extensions (GUI, Driver Station socket, etc.).
+  </Step>
+  
+  <Step title="Open GUI">
+    If `halsim_gui` is enabled, the simulation GUI window opens showing:
+    - Hardware devices (motors, encoders, gyros, etc.)
+    - Driver Station controls
+    - Robot state information
+  </Step>
+  
+  <Step title="Run Robot Code">
+    Your robot program executes using simulated hardware instead of real devices.
+  </Step>
+</Steps>
+
+## Interacting with Simulated Robots
+
+### Using the Simulation GUI
+
+When the GUI opens, you can:
+
+1. **Enable the robot**: Click "TeleOp" or "Autonomous" in the Driver Station widget
+2. **Control inputs**: 
+   - Use keyboard for joystick simulation
+   - Click on sensors to change values
+   - Drag sliders for analog inputs
+3. **Monitor outputs**:
+   - See motor speeds and directions
+   - View encoder counts
+   - Check digital I/O states
+
+### Using the Real Driver Station
+
+If `halsim_ds_socket` is loaded, you can connect the actual FRC Driver Station:
+
+```bash
+# The extension listens for Driver Station connections
+# Just launch your Driver Station software and it will connect
+```
+
+## Building Without Running
+
+To compile examples without running them:
+
+### C++ Examples
+
+```bash
+./gradlew buildDesktopCpp
+```
+
+This builds all C++ examples for your desktop platform but doesn't execute them.
+
+### Java Examples
+
+```bash
+./gradlew buildDesktopJava
+```
+
+This builds all Java examples for your desktop platform.
+
+## Running Tests
+
+Many examples include unit tests that run in simulation:
+
+### C++ Tests
+
+```bash
+./gradlew testDesktopCpp
+```
+
+Run tests for a specific project:
+
+```bash
+./gradlew :wpilibc:testDesktopCpp
+./gradlew :wpimath:testDesktopCpp
+```
+
+### Java Tests
+
+```bash
+./gradlew testDesktopJava
+```
+
+Run tests for a specific project:
+
+```bash
+./gradlew :wpilibj:testDesktopJava
+./gradlew :wpimath:testDesktopJava
+```
+
+### Run All Tests
+
+```bash
+./gradlew testDesktop
+```
+
+This runs both C++ and Java tests.
+
+## Example-Specific Tests
+
+Some examples have their own test suites:
+
+```bash
+# Test the ElevatorSimulation example
+./gradlew wpilibcExamples:test --tests examples.ElevatorSimulation.*
+
+# Test the ArmSimulation example  
+./gradlew wpilibcExamples:test --tests examples.ArmSimulation.*
+```
+
+## Build Performance Tips
+
+### Use Build Cache
+
+Speed up builds by using the shared build cache:
+
+```bash
+./gradlew build --build-cache
+```
+
+This reuses artifacts from previous builds and CI.
+
+### Build Only What You Need
+
+The full `./gradlew build` command builds for all platforms (desktop + cross-compilers). For faster development:
+
+- Use `testDesktopCpp` or `testDesktopJava` for specific tests
+- Use `buildDesktopCpp` or `buildDesktopJava` to compile without running
+- Target specific projects with `:projectName:task`
+
+## Troubleshooting
+
+### Example Won't Start
+
+- Ensure you have JDK 17 installed (not just JRE)
+- Run `./gradlew compileJava` to generate dependencies
+- Check that no other instance is using the same ports
+
+### GUI Doesn't Appear
+
+- Verify `halsim_gui` extension is enabled
+- Check console output for initialization errors
+- Ensure graphics drivers are up to date
+
+### Driver Station Won't Connect
+
+- Confirm `halsim_ds_socket` extension is loaded
+- Check firewall settings allow local connections
+- Verify Driver Station is set to practice mode
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Simulation Overview" icon="book" href="/simulation/overview">
+    Learn about the simulation framework architecture
+  </Card>
+  <Card title="GUI Tools" icon="desktop" href="/simulation/gui-tools">
+    Explore the simulation GUI features in detail
+  </Card>
+</CardGroup>

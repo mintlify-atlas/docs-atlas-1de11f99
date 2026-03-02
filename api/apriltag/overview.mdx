@@ -1,0 +1,474 @@
+---
+title: AprilTag API
+description: AprilTag detection and pose estimation for robot localization
+---
+
+The AprilTag library provides fiducial marker detection and 3D pose estimation for robot localization and vision targeting.
+
+## Overview
+
+AprilTags are visual fiducial markers similar to QR codes, designed for:
+- Robot localization on the field
+- Precise pose estimation
+- Vision-based targeting
+- Multi-tag tracking
+- Known field layouts
+
+<Note>
+  AprilTags are the standard fiducial markers used in FRC, placed at known locations around the field. The AprilTag library helps detect these markers and determine the robot's position.
+</Note>
+
+## Core Concepts
+
+<CardGroup cols={2}>
+  <Card title="Detection" icon="camera-viewfinder" href="#apriltag-detection">
+    Detect AprilTags in camera images
+  </Card>
+  <Card title="Pose Estimation" icon="cube" href="#pose-estimation">
+    Estimate 3D position from detections
+  </Card>
+  <Card title="Field Layouts" icon="map" href="#field-layouts">
+    Use known tag positions for localization
+  </Card>
+  <Card title="Multi-Tag" icon="tags" href="#multi-tag-pose">
+    Improve accuracy with multiple tags
+  </Card>
+</CardGroup>
+
+## AprilTag Detection
+
+### Basic Detection
+
+```java
+import edu.wpi.first.apriltag.AprilTagDetector;
+import edu.wpi.first.apriltag.AprilTagDetection;
+import org.opencv.core.Mat;
+
+// Create detector
+AprilTagDetector detector = new AprilTagDetector();
+
+// Configure for 16h5 tag family (standard for FRC)
+detector.addFamily("tag16h5");
+
+// Optional: Configure detector settings
+detector.setConfig(new AprilTagDetector.Config()
+    .setNumThreads(4)          // Parallel processing
+    .setQuadDecimate(2.0)      // Reduce resolution by 2x
+    .setQuadSigma(0.0)         // Blur amount
+    .setRefineEdges(true)      // Improve edge detection
+    .setDecodeSharpening(0.25) // Sharpening amount
+);
+
+// Detect tags in image
+Mat grayImage = ...; // Grayscale image from camera
+AprilTagDetection[] detections = detector.detect(grayImage);
+
+// Process detections
+for (AprilTagDetection detection : detections) {
+    int id = detection.getId();
+    double centerX = detection.getCenterX();
+    double centerY = detection.getCenterY();
+    double[] corners = detection.getCorners();  // 8 values: x0,y0,x1,y1,x2,y2,x3,y3
+    int hamming = detection.getHamming();       // Error correction bits used
+    float decisionMargin = detection.getDecisionMargin();  // Detection confidence
+    
+    System.out.printf("Tag %d at (%.1f, %.1f)%n", id, centerX, centerY);
+}
+```
+
+```cpp
+#include <frc/apriltag/AprilTagDetector.h>
+#include <opencv2/core.hpp>
+
+// Create detector
+frc::AprilTagDetector detector;
+
+// Configure for 16h5 tag family
+detector.AddFamily("tag16h5");
+
+// Configure settings
+frc::AprilTagDetector::Config config;
+config.numThreads = 4;
+config.quadDecimate = 2.0;
+config.refineEdges = true;
+detector.SetConfig(config);
+
+// Detect tags
+cv::Mat grayImage = ...;
+std::vector<frc::AprilTagDetection> detections = detector.Detect(grayImage);
+
+// Process detections
+for (const auto& detection : detections) {
+    int id = detection.GetId();
+    double centerX = detection.GetCenterX();
+    double centerY = detection.GetCenterY();
+    
+    fmt::print("Tag {} at ({:.1f}, {:.1f})\n", id, centerX, centerY);
+}
+```
+
+### Tag Families
+
+Different AprilTag families have different properties:
+
+| Family | Total Tags | Hamming Distance | Error Correction |
+|--------|------------|------------------|------------------|
+| `tag16h5` | 30 | 5 | Good (FRC standard) |
+| `tag25h9` | 35 | 9 | Excellent |
+| `tag36h11` | 587 | 11 | Best |
+| `tagCircle21h7` | 38 | 7 | Good (circular) |
+| `tagStandard41h12` | 2115 | 12 | Excellent |
+
+```java
+// Add multiple families
+detector.addFamily("tag16h5");
+detector.addFamily("tag36h11");
+```
+
+## Pose Estimation
+
+Estimate 3D pose (position and orientation) from tag detections.
+
+### Single Tag Pose
+
+```java
+import edu.wpi.first.apriltag.AprilTagPoseEstimator;
+import edu.wpi.first.math.geometry.Transform3d;
+
+// Camera calibration parameters
+AprilTagPoseEstimator.Config poseConfig = new AprilTagPoseEstimator.Config(
+    0.1524,  // Tag size in meters (6 inches)
+    640.0,   // Camera fx (focal length x)
+    640.0,   // Camera fy (focal length y)
+    320.0,   // Camera cx (principal point x)
+    240.0    // Camera cy (principal point y)
+);
+
+AprilTagPoseEstimator poseEstimator = new AprilTagPoseEstimator(poseConfig);
+
+// Estimate pose for a detection
+AprilTagPoseEstimate poseEstimate = poseEstimator.estimate(detection);
+
+// Get transforms
+Transform3d pose1 = poseEstimate.getPose1();  // Primary solution
+Transform3d pose2 = poseEstimate.getPose2();  // Alternate solution
+double error1 = poseEstimate.getError1();
+double error2 = poseEstimate.getError2();
+
+// Use solution with lower error
+Transform3d bestPose = error1 < error2 ? pose1 : pose2;
+```
+
+```cpp
+#include <frc/apriltag/AprilTagPoseEstimator.h>
+
+// Camera calibration
+frc::AprilTagPoseEstimator::Config poseConfig{
+    0.1524,  // Tag size (meters)
+    640.0,   // fx
+    640.0,   // fy
+    320.0,   // cx
+    240.0    // cy
+};
+
+frc::AprilTagPoseEstimator poseEstimator{poseConfig};
+
+// Estimate pose
+frc::AprilTagPoseEstimate poseEstimate = poseEstimator.Estimate(detection);
+
+frc::Transform3d pose1 = poseEstimate.pose1;
+frc::Transform3d pose2 = poseEstimate.pose2;
+```
+
+### Camera Calibration
+
+Accurate pose estimation requires camera calibration parameters:
+
+```java
+// Calibration from file or NetworkTables
+double fx = 640.0;  // Focal length X (pixels)
+double fy = 640.0;  // Focal length Y (pixels)
+double cx = 320.0;  // Principal point X (pixels)
+double cy = 240.0;  // Principal point Y (pixels)
+
+// For a typical FRC camera (Microsoft LifeCam HD-3000)
+// Resolution: 640x480
+// Approximate calibration:
+AprilTagPoseEstimator.Config config = new AprilTagPoseEstimator.Config(
+    0.1524,  // 6 inch tags
+    640.0,   // fx
+    640.0,   // fy  
+    320.0,   // cx (width/2)
+    240.0    // cy (height/2)
+);
+```
+
+## Field Layouts
+
+Use known AprilTag positions for robot localization.
+
+### Loading Field Layout
+
+```java
+import edu.wpi.first.apriltag.AprilTagFieldLayout;
+import edu.wpi.first.apriltag.AprilTagFields;
+import edu.wpi.first.math.geometry.Pose3d;
+
+// Load current year's field layout
+AprilTagFieldLayout fieldLayout = 
+    AprilTagFieldLayout.loadFromResource(AprilTagFields.k2024Crescendo.m_resourceFile);
+
+// Or load from file
+AprilTagFieldLayout customLayout = new AprilTagFieldLayout("/path/to/layout.json");
+
+// Get tag pose on field
+Optional<Pose3d> tagPose = fieldLayout.getTagPose(4);  // Tag ID 4
+
+if (tagPose.isPresent()) {
+    Pose3d pose = tagPose.get();
+    System.out.printf("Tag 4 at (%.2f, %.2f, %.2f)%n",
+                      pose.getX(), pose.getY(), pose.getZ());
+}
+```
+
+```cpp
+#include <frc/apriltag/AprilTagFieldLayout.h>
+#include <frc/apriltag/AprilTagFields.h>
+
+// Load field layout
+frc::AprilTagFieldLayout fieldLayout = 
+    frc::LoadAprilTagLayoutField(frc::AprilTagField::k2024Crescendo);
+
+// Get tag pose
+std::optional<frc::Pose3d> tagPose = fieldLayout.GetTagPose(4);
+
+if (tagPose) {
+    fmt::print("Tag 4 at ({:.2f}, {:.2f}, {:.2f})\n",
+               tagPose->X().value(),
+               tagPose->Y().value(),
+               tagPose->Z().value());
+}
+```
+
+### Available Field Layouts
+
+```java
+// Pre-defined field layouts
+AprilTagFields.k2024Crescendo
+AprilTagFields.k2023ChargedUp
+AprilTagFields.k2022RapidReact
+// ... and more
+```
+
+### Custom Field Layout
+
+```java
+import edu.wpi.first.apriltag.AprilTag;
+
+// Create custom layout
+List<AprilTag> tags = List.of(
+    new AprilTag(1, new Pose3d(1.0, 2.0, 0.5, new Rotation3d())),
+    new AprilTag(2, new Pose3d(3.0, 4.0, 0.5, new Rotation3d()))
+);
+
+AprilTagFieldLayout layout = new AprilTagFieldLayout(tags, 16.54, 8.02);
+// Field dimensions: width=16.54m, height=8.02m
+```
+
+## Multi-Tag Pose
+
+Improve pose estimation accuracy using multiple visible tags.
+
+```java
+import edu.wpi.first.math.geometry.Pose3d;
+import edu.wpi.first.math.geometry.Transform3d;
+
+// Detect multiple tags
+AprilTagDetection[] detections = detector.detect(grayImage);
+
+if (detections.length > 0) {
+    // Estimate poses for all detections
+    List<Pair<Integer, Transform3d>> tagPoses = new ArrayList<>();
+    
+    for (AprilTagDetection detection : detections) {
+        AprilTagPoseEstimate estimate = poseEstimator.estimate(detection);
+        Transform3d bestPose = estimate.getError1() < estimate.getError2() 
+            ? estimate.getPose1() 
+            : estimate.getPose2();
+        tagPoses.add(Pair.of(detection.getId(), bestPose));
+    }
+    
+    // Combine multiple tag observations
+    // Use field layout to compute robot pose
+    for (var tagPose : tagPoses) {
+        int tagId = tagPose.getFirst();
+        Transform3d cameraToTag = tagPose.getSecond();
+        
+        Optional<Pose3d> fieldToTag = fieldLayout.getTagPose(tagId);
+        if (fieldToTag.isPresent()) {
+            // Robot pose = tag pose - camera to tag - robot to camera
+            Pose3d robotPose = fieldToTag.get()
+                .transformBy(cameraToTag.inverse())
+                .transformBy(robotToCamera.inverse());
+        }
+    }
+}
+```
+
+## Vision Processing Pipeline
+
+Complete vision processing example:
+
+```java
+import edu.wpi.first.cscore.CvSink;
+import edu.wpi.first.cscore.CvSource;
+import edu.wpi.first.cameraserver.CameraServer;
+import org.opencv.core.Mat;
+import org.opencv.imgproc.Imgproc;
+
+public class AprilTagVision extends Thread {
+  private final AprilTagDetector detector;
+  private final AprilTagPoseEstimator poseEstimator;
+  private final AprilTagFieldLayout fieldLayout;
+  
+  public AprilTagVision() {
+    // Setup detector
+    detector = new AprilTagDetector();
+    detector.addFamily("tag16h5");
+    
+    // Setup pose estimator
+    poseEstimator = new AprilTagPoseEstimator(
+        new AprilTagPoseEstimator.Config(
+            0.1524, 640, 640, 320, 240));
+    
+    // Load field layout
+    fieldLayout = AprilTagFieldLayout.loadFromResource(
+        AprilTagFields.k2024Crescendo.m_resourceFile);
+  }
+  
+  @Override
+  public void run() {
+    // Get camera
+    CvSink cvSink = CameraServer.getVideo();
+    CvSource outputStream = CameraServer.putVideo("AprilTag", 640, 480);
+    
+    Mat frame = new Mat();
+    Mat grayFrame = new Mat();
+    
+    while (!Thread.interrupted()) {
+      if (cvSink.grabFrame(frame) == 0) {
+        continue;
+      }
+      
+      // Convert to grayscale
+      Imgproc.cvtColor(frame, grayFrame, Imgproc.COLOR_BGR2GRAY);
+      
+      // Detect tags
+      AprilTagDetection[] detections = detector.detect(grayFrame);
+      
+      // Draw detections on frame
+      for (AprilTagDetection detection : detections) {
+        drawDetection(frame, detection);
+        
+        // Estimate and publish pose
+        AprilTagPoseEstimate estimate = poseEstimator.estimate(detection);
+        publishPose(detection.getId(), estimate);
+      }
+      
+      // Output annotated frame
+      outputStream.putFrame(frame);
+    }
+  }
+  
+  private void drawDetection(Mat frame, AprilTagDetection detection) {
+    // Draw tag outline and ID
+    double[] corners = detection.getCorners();
+    // ... drawing code ...
+  }
+  
+  private void publishPose(int tagId, AprilTagPoseEstimate estimate) {
+    // Publish to NetworkTables or use for robot localization
+  }
+}
+```
+
+## Performance Optimization
+
+### Detector Configuration
+
+```java
+AprilTagDetector.Config config = new AprilTagDetector.Config();
+
+// Faster detection (lower accuracy)
+config.setQuadDecimate(4.0);      // 4x resolution reduction
+config.setRefineEdges(false);     // Skip edge refinement
+config.setNumThreads(2);          // Fewer threads
+
+// Higher accuracy (slower)
+config.setQuadDecimate(1.0);      // No decimation
+config.setRefineEdges(true);      // Refine edges
+config.setNumThreads(4);          // More threads
+config.setDecodeSharpening(0.25); // Sharpen before decode
+
+detector.setConfig(config);
+```
+
+### Camera Settings
+
+```java
+// Configure camera for AprilTag detection
+camera.setResolution(640, 480);    // Moderate resolution
+camera.setFPS(30);                 // Standard framerate
+camera.setExposureManual(10);      // Low exposure (less blur)
+camera.setWhiteBalanceManual(3000); // Consistent colors
+```
+
+## Drawing Detections
+
+```java
+import org.opencv.core.*;
+import org.opencv.imgproc.Imgproc;
+
+public void drawDetection(Mat image, AprilTagDetection detection) {
+    double[] corners = detection.getCorners();
+    
+    // Draw outline
+    for (int i = 0; i < 4; i++) {
+        int j = (i + 1) % 4;
+        Point p1 = new Point(corners[i*2], corners[i*2+1]);
+        Point p2 = new Point(corners[j*2], corners[j*2+1]);
+        Imgproc.line(image, p1, p2, new Scalar(0, 255, 0), 2);
+    }
+    
+    // Draw center
+    Point center = new Point(detection.getCenterX(), detection.getCenterY());
+    Imgproc.circle(image, center, 5, new Scalar(0, 0, 255), -1);
+    
+    // Draw ID
+    String id = String.valueOf(detection.getId());
+    Imgproc.putText(image, id, center, 
+                    Imgproc.FONT_HERSHEY_SIMPLEX, 1.0, 
+                    new Scalar(255, 0, 0), 2);
+}
+```
+
+## Source Code
+
+View the full source code on GitHub:
+- [AprilTag Java](https://github.com/wpilibsuite/allwpilib/tree/main/apriltag/src/main/java/edu/wpi/first/apriltag)
+- [AprilTag C++](https://github.com/wpilibsuite/allwpilib/tree/main/apriltag/src/main/native/include/frc/apriltag)
+- [AprilTag Native Library](https://github.com/wpilibsuite/allwpilib/tree/main/apriltag/src/main/native/thirdparty/apriltag)
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card title="CameraServer" icon="video" href="/api/cameraserver/overview">
+    Camera streaming and capture
+  </Card>
+  <Card title="WPIMath" icon="square-root-variable" href="/api/wpimath/overview">
+    Geometry and pose estimation
+  </Card>
+  <Card title="PhotonVision" icon="camera" href="https://docs.photonvision.org">
+    Vision processing coprocessor
+  </Card>
+</CardGroup>

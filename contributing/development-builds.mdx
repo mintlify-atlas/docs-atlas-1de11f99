@@ -1,0 +1,189 @@
+---
+title: Using Development Builds
+description: Guide to using development and local WPILib builds
+---
+
+<Note>
+  This guide only applies to Java/C++ teams.
+</Note>
+
+<Warning>
+  **There are no stability or compatibility guarantees for builds outside of [tagged releases](https://github.com/wpilibsuite/allwpilib/releases).** Changes may not be fully documented. Use them at your own risk!
+  
+  Development builds may be non-functional between the end of the season and the start of beta testing. Development builds are also likely to be incompatible with vendor libraries during this time.
+</Warning>
+
+This guide explains how to use development builds and local builds of WPILib in your robot projects.
+
+## Development Builds
+
+Development builds are per-commit builds hosted every time a commit is pushed to the [allwpilib](https://github.com/wpilibsuite/allwpilib/) repository. These builds are then hosted on [artifactory](https://frcmaven.wpi.edu/artifactory/webapp/#/home).
+
+### Configuring Your Project
+
+<Steps>
+  <Step title="Open build.gradle">
+    Find the `build.gradle` file in your robot project and open it.
+  </Step>
+
+  <Step title="Add development configuration">
+    Add the following code below the plugins section and replace `YEAR` with the year of the development version:
+    
+    ```groovy
+    wpi.maven.useLocal = false
+    wpi.maven.useDevelopment = true
+    wpi.versions.wpilibVersion = 'YEAR.+'
+    wpi.versions.wpimathVersion = 'YEAR.+'
+    ```
+    
+    <Note>
+      It is also necessary to use a 2026 GradleRIO version, e.g., `2026.1.1`
+    </Note>
+  </Step>
+</Steps>
+
+### Java Example
+
+The top of your `build.gradle` file should look similar to this:
+
+```groovy
+plugins {
+  id "java"
+  id "edu.wpi.first.GradleRIO" version "2026.1.1"
+}
+
+wpi.maven.useLocal = false
+wpi.maven.useDevelopment = true
+wpi.versions.wpilibVersion = '2026.+'
+wpi.versions.wpimathVersion = '2026.+'
+```
+
+### C++ Example
+
+The top of your `build.gradle` file should look similar to this:
+
+```groovy
+plugins {
+  id "cpp"
+  id "google-test-test-suite"
+  id "edu.wpi.first.GradleRIO" version "2026.1.1"
+}
+
+wpi.maven.useLocal = false
+wpi.maven.useDevelopment = true
+wpi.versions.wpilibVersion = '2026.+'
+wpi.versions.wpimathVersion = '2026.+'
+```
+
+### Development Build Documentation
+
+- [C++ Development Docs](https://github.wpilib.org/allwpilib/docs/development/cpp/)
+- [Java Development Docs](https://github.wpilib.org/allwpilib/docs/development/java/)
+
+## Local Builds
+
+Building with a local build allows you to test changes you've made to WPILib itself.
+
+### Prerequisites
+
+Ensure you have built and published WPILib by following the [building instructions](/contributing/building).
+
+<Steps>
+  <Step title="Build and publish WPILib">
+    In your WPILib repository clone, run:
+    
+    ```bash
+    ./gradlew build
+    ./gradlew publish
+    ```
+    
+    This will publish all available packages to `~/releases/maven/development`.
+  </Step>
+
+  <Step title="Configure your robot project">
+    Find the `build.gradle` file in your robot project and open it.
+  </Step>
+
+  <Step title="Add local build configuration">
+    Add the following code below the plugins section and replace `YEAR` with the year of the local version:
+    
+    ```groovy
+    wpi.maven.useLocal = false
+    wpi.maven.useFrcMavenLocalDevelopment = true
+    wpi.versions.wpilibVersion = 'YEAR.424242.+'
+    wpi.versions.wpimathVersion = 'YEAR.424242.+'
+    ```
+  </Step>
+</Steps>
+
+### Java Local Build Example
+
+```groovy
+plugins {
+  id "java"
+  id "edu.wpi.first.GradleRIO" version "2026.1.1"
+}
+
+wpi.maven.useLocal = false
+wpi.maven.useFrcMavenLocalDevelopment = true
+wpi.versions.wpilibVersion = '2026.424242.+'
+wpi.versions.wpimathVersion = '2026.424242.+'
+```
+
+### C++ Local Build Example
+
+```groovy
+plugins {
+  id "cpp"
+  id "google-test-test-suite"
+  id "edu.wpi.first.GradleRIO" version "2026.1.1"
+}
+
+wpi.maven.useLocal = false
+wpi.maven.useFrcMavenLocalDevelopment = true
+wpi.versions.wpilibVersion = '2026.424242.+'
+wpi.versions.wpimathVersion = '2026.424242.+'
+```
+
+## Publishing to Different Repositories
+
+If you need to publish the project to a different repository, you can specify it with `-Prepo=repo_name`:
+
+```bash
+./gradlew publish -Prepo=beta
+```
+
+Valid repository options:
+
+- `development` - The default repo (~/releases/maven/development)
+- `beta` - Publishes to ~/releases/maven/beta
+- `stable` - Publishes to ~/releases/maven/stable
+- `release` - Publishes to ~/releases/maven/release
+
+## roboRIO Development
+
+For advanced roboRIO development workflows, see the [developerRobot](https://github.com/wpilibsuite/allwpilib/tree/main/developerRobot) subproject.
+
+## Troubleshooting
+
+### Vendor Library Compatibility
+
+Development builds may be incompatible with vendor libraries, especially during the off-season. If you encounter issues:
+
+- Check with the vendor for updated libraries
+- Use a stable release instead
+- Wait for vendor library updates
+
+### Build Errors
+
+If you encounter build errors when using development builds:
+
+- Ensure you're using a compatible GradleRIO version
+- Check that the year in the version string matches
+- Verify that development builds are available for that version
+
+## Next Steps
+
+- [Learn about Maven artifacts](/contributing/maven-artifacts)
+- [Review the build process](/contributing/building)
+- [Understand generated files](/contributing/generated-files)

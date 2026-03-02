@@ -1,0 +1,432 @@
+---
+title: Elevator Simulation Example
+description: Simulate an elevator mechanism with ProfiledPID control and feedforward
+---
+
+This example demonstrates elevator simulation with advanced control using ProfiledPIDController, feedforward, and Mechanism2d visualization.
+
+## Main Robot Class
+
+<Tabs>
+  <Tab title="Java">
+    ```java
+    package edu.wpi.first.wpilibj.examples.elevatorsimulation;
+
+    import edu.wpi.first.wpilibj.Joystick;
+    import edu.wpi.first.wpilibj.TimedRobot;
+    import edu.wpi.first.wpilibj.examples.elevatorsimulation.subsystems.Elevator;
+
+    public class Robot extends TimedRobot {
+      private final Joystick m_joystick = new Joystick(Constants.kJoystickPort);
+      private final Elevator m_elevator = new Elevator();
+
+      @Override
+      public void robotPeriodic() {
+        // Update the telemetry, including mechanism visualization, regardless of mode.
+        m_elevator.updateTelemetry();
+      }
+
+      @Override
+      public void simulationPeriodic() {
+        // Update the simulation model.
+        m_elevator.simulationPeriodic();
+      }
+
+      @Override
+      public void teleopPeriodic() {
+        if (m_joystick.getTrigger()) {
+          // Here, we set the constant setpoint of 0.75 meters.
+          m_elevator.reachGoal(Constants.kSetpointMeters);
+        } else {
+          // Otherwise, we update the setpoint to 0.
+          m_elevator.reachGoal(0.0);
+        }
+      }
+
+      @Override
+      public void disabledInit() {
+        // This just makes sure that our simulation code knows that the motor's off.
+        m_elevator.stop();
+      }
+    }
+    ```
+  </Tab>
+  <Tab title="C++">
+    ```cpp
+    #include "Robot.h"
+    #include "Constants.h"
+
+    void Robot::RobotPeriodic() {
+      // Update the telemetry, including mechanism visualization, regardless of mode.
+      m_elevator.UpdateTelemetry();
+    }
+
+    void Robot::SimulationPeriodic() {
+      // Update the simulation model.
+      m_elevator.SimulationPeriodic();
+    }
+
+    void Robot::TeleopPeriodic() {
+      if (m_joystick.GetTrigger()) {
+        // Here, we set the constant setpoint of 0.75 meters.
+        m_elevator.ReachGoal(Constants::kSetpoint);
+      } else {
+        // Otherwise, we update the setpoint to 0.
+        m_elevator.ReachGoal(0.0_m);
+      }
+    }
+
+    void Robot::DisabledInit() {
+      // This just makes sure that our simulation code knows that the motor's off.
+      m_elevator.Stop();
+    }
+
+    #ifndef RUNNING_FRC_TESTS
+    int main() {
+      return frc::StartRobot<Robot>();
+    }
+    #endif
+    ```
+  </Tab>
+</Tabs>
+
+## Elevator Subsystem (Partial)
+
+<Tabs>
+  <Tab title="Java">
+    ```java
+    package edu.wpi.first.wpilibj.examples.elevatorsimulation.subsystems;
+
+    import edu.wpi.first.math.controller.ElevatorFeedforward;
+    import edu.wpi.first.math.controller.ProfiledPIDController;
+    import edu.wpi.first.math.system.plant.DCMotor;
+    import edu.wpi.first.math.trajectory.TrapezoidProfile;
+    import edu.wpi.first.wpilibj.Encoder;
+    import edu.wpi.first.wpilibj.RobotController;
+    import edu.wpi.first.wpilibj.motorcontrol.PWMSparkMax;
+    import edu.wpi.first.wpilibj.simulation.BatterySim;
+    import edu.wpi.first.wpilibj.simulation.ElevatorSim;
+    import edu.wpi.first.wpilibj.simulation.EncoderSim;
+    import edu.wpi.first.wpilibj.simulation.RoboRioSim;
+    import edu.wpi.first.wpilibj.smartdashboard.Mechanism2d;
+    import edu.wpi.first.wpilibj.smartdashboard.MechanismLigament2d;
+    import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
+
+    public class Elevator implements AutoCloseable {
+      // This gearbox represents a gearbox containing 4 Vex 775pro motors.
+      private final DCMotor m_elevatorGearbox = DCMotor.getVex775Pro(4);
+
+      // Standard classes for controlling our elevator
+      private final ProfiledPIDController m_controller =
+          new ProfiledPIDController(
+              kElevatorKp,
+              kElevatorKi,
+              kElevatorKd,
+              new TrapezoidProfile.Constraints(2.45, 2.45));
+      
+      ElevatorFeedforward m_feedforward =
+          new ElevatorFeedforward(
+              kElevatorkS,  // Static gain
+              kElevatorkG,  // Gravity gain
+              kElevatorkV,  // Velocity gain
+              kElevatorkA); // Acceleration gain
+      
+      private final Encoder m_encoder = new Encoder(kEncoderAChannel, kEncoderBChannel);
+      private final PWMSparkMax m_motor = new PWMSparkMax(kMotorPort);
+
+      // Simulation classes help us simulate what's going on, including gravity.
+      private final ElevatorSim m_elevatorSim =
+          new ElevatorSim(
+              m_elevatorGearbox,
+              kElevatorGearing,
+              kCarriageMass,
+              kElevatorDrumRadius,
+              kMinElevatorHeightMeters,
+              kMaxElevatorHeightMeters,
+              true,
+              0,
+              0.01,
+              0.0);
+      private final EncoderSim m_encoderSim = new EncoderSim(m_encoder);
+
+      // Create a Mechanism2d visualization of the elevator
+      private final Mechanism2d m_mech2d = new Mechanism2d(20, 50);
+      private final MechanismRoot2d m_mech2dRoot = m_mech2d.getRoot("Elevator Root", 10, 0);
+      private final MechanismLigament2d m_elevatorMech2d =
+          m_mech2dRoot.append(
+              new MechanismLigament2d("Elevator", m_elevatorSim.getPositionMeters(), 90));
+
+      public Elevator() {
+        m_encoder.setDistancePerPulse(kElevatorEncoderDistPerPulse);
+        SmartDashboard.putData("Elevator Sim", m_mech2d);
+      }
+
+      /** Advance the simulation. */
+      public void simulationPeriodic() {
+        // In this method, we update our simulation of what our elevator is doing
+        // First, we set our "inputs" (voltages)
+        m_elevatorSim.setInput(m_motorSim.getSpeed() * RobotController.getBatteryVoltage());
+
+        // Next, we update it. The standard loop time is 20ms.
+        m_elevatorSim.update(0.020);
+
+        // Finally, we set our simulated encoder's readings and simulated battery voltage
+        m_encoderSim.setDistance(m_elevatorSim.getPositionMeters());
+        // SimBattery estimates loaded battery voltages
+        RoboRioSim.setVInVoltage(
+            BatterySim.calculateDefaultBatteryLoadedVoltage(m_elevatorSim.getCurrentDrawAmps()));
+      }
+
+      /**
+       * Run control loop to reach and maintain goal.
+       *
+       * @param goal the position to maintain
+       */
+      public void reachGoal(double goal) {
+        m_controller.setGoal(goal);
+
+        // With the setpoint value we run PID control like normal
+        double pidOutput = m_controller.calculate(m_encoder.getDistance());
+        double feedforwardOutput = m_feedforward.calculate(m_controller.getSetpoint().velocity);
+        m_motor.setVoltage(pidOutput + feedforwardOutput);
+      }
+
+      /** Update telemetry, including the mechanism visualization. */
+      public void updateTelemetry() {
+        // Update elevator visualization with position
+        m_elevatorMech2d.setLength(m_encoder.getDistance());
+      }
+
+      public void stop() {
+        m_controller.setGoal(0.0);
+        m_motor.set(0.0);
+      }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## What This Example Demonstrates
+
+### ElevatorSim
+
+Simulates a vertical elevator mechanism with realistic physics:
+
+```java
+ElevatorSim m_elevatorSim = new ElevatorSim(
+    m_elevatorGearbox,           // DCMotor gearbox (4x Vex 775 Pro)
+    kElevatorGearing,            // Gear reduction
+    kCarriageMass,               // Mass of carriage + payload (kg)
+    kElevatorDrumRadius,         // Radius of drum/pulley (meters)
+    kMinElevatorHeightMeters,    // Minimum height (0.0)
+    kMaxElevatorHeightMeters,    // Maximum height (1.25m)
+    true,                        // Simulate gravity
+    0,                           // Starting height
+    0.01,                        // Measurement std dev
+    0.0);                        // Measurement noise
+```
+
+**Key Parameters:**
+- **Carriage Mass**: Total mass being lifted (elevator carriage + payload)
+- **Drum Radius**: Determines linear distance per rotation
+- **Gravity**: Elevator will fall if not powered (unlike arms which rotate)
+
+### ProfiledPIDController
+
+Adds motion profiling to PID control for smooth, constrained motion:
+
+```java
+ProfiledPIDController m_controller = new ProfiledPIDController(
+    kP, kI, kD,
+    new TrapezoidProfile.Constraints(
+        2.45,  // Max velocity (m/s)
+        2.45   // Max acceleration (m/s²)
+    ));
+
+// Set goal and calculate control output
+m_controller.setGoal(goal);
+double pidOutput = m_controller.calculate(currentPosition);
+```
+
+**Advantages over regular PID:**
+- Smooth acceleration/deceleration
+- Respects velocity and acceleration limits
+- No jerky motion
+- Predictable timing
+
+### ElevatorFeedforward
+
+Compensates for known system dynamics:
+
+```java
+ElevatorFeedforward m_feedforward = new ElevatorFeedforward(
+    kS,  // Static friction voltage (volts)
+    kG,  // Gravity voltage (volts) - voltage to hold position
+    kV,  // Velocity gain (volts per meter/second)
+    kA   // Acceleration gain (volts per meter/second²)
+);
+
+// Calculate feedforward voltage based on desired velocity
+double feedforwardOutput = m_feedforward.calculate(desiredVelocity);
+```
+
+**Feedforward components:**
+- **kS**: Overcomes static friction to start moving
+- **kG**: Counteracts gravity (specific to elevators!)
+- **kV**: Maintains constant velocity
+- **kA**: Provides power during acceleration
+
+### Combined Control
+
+Feedback (PID) + Feedforward for optimal control:
+
+```java
+public void reachGoal(double goal) {
+  m_controller.setGoal(goal);
+  
+  // PID: Corrects for errors
+  double pidOutput = m_controller.calculate(m_encoder.getDistance());
+  
+  // Feedforward: Compensates for known system behavior
+  double feedforwardOutput = m_feedforward.calculate(m_controller.getSetpoint().velocity);
+  
+  // Combine both
+  m_motor.setVoltage(pidOutput + feedforwardOutput);
+}
+```
+
+**Why combine them?**
+- **Feedforward**: Does the "heavy lifting" based on physics model
+- **PID**: Corrects for modeling errors and disturbances
+- **Result**: Faster response, less overshoot, better tracking
+
+### Simulation Update Loop
+
+```java
+public void simulationPeriodic() {
+  // 1. Get motor output voltage
+  m_elevatorSim.setInput(m_motorSim.getSpeed() * RobotController.getBatteryVoltage());
+  
+  // 2. Update physics (20ms timestep)
+  m_elevatorSim.update(0.020);
+  
+  // 3. Update simulated encoder
+  m_encoderSim.setDistance(m_elevatorSim.getPositionMeters());
+  
+  // 4. Simulate battery voltage sag
+  RoboRioSim.setVInVoltage(
+      BatterySim.calculateDefaultBatteryLoadedVoltage(m_elevatorSim.getCurrentDrawAmps()));
+}
+```
+
+### Mechanism2d Visualization
+
+Vertical elevator display:
+
+```java
+Mechanism2d m_mech2d = new Mechanism2d(20, 50);  // 20 wide, 50 tall
+MechanismRoot2d m_mech2dRoot = m_mech2d.getRoot("Elevator Root", 10, 0);  // Bottom center
+
+MechanismLigament2d m_elevatorMech2d = 
+    m_mech2dRoot.append(
+        new MechanismLigament2d(
+            "Elevator", 
+            m_elevatorSim.getPositionMeters(),  // Initial height
+            90));                                // Angle (90° = straight up)
+
+// Update height in telemetry
+public void updateTelemetry() {
+  m_elevatorMech2d.setLength(m_encoder.getDistance());
+}
+```
+
+### Identifying Feedforward Gains
+
+Use SysId tool to characterize your elevator:
+
+1. Run SysId on your robot
+2. Collect data (quasistatic and dynamic tests)
+3. Analyze to get kS, kG, kV, kA values
+4. Use these values in your code
+
+Example values:
+```java
+public static final double kElevatorkS = 0.5;   // Volts
+public static final double kElevatorkG = 0.7;   // Volts (gravity compensation)
+public static final double kElevatorkV = 5.0;   // V/(m/s)
+public static final double kElevatorkA = 0.2;   // V/(m/s²)
+```
+
+### Tuning ProfiledPID Gains
+
+Start with these steps:
+
+1. **Set velocity/acceleration constraints** based on mechanism capabilities
+2. **Tune kP**: Increase until oscillation, then reduce by half
+3. **Add kD** if needed to reduce overshoot
+4. **Add kI** only if steady-state error persists (usually not needed with feedforward)
+
+```java
+ProfiledPIDController m_controller = new ProfiledPIDController(
+    10.0,  // kP - start here and adjust
+    0.0,   // kI - usually not needed
+    0.5,   // kD - add if oscillating
+    new TrapezoidProfile.Constraints(2.45, 2.45));
+```
+
+## Safety Considerations
+
+Elevators can be dangerous! Include safety features:
+
+```java
+// Software limits
+if (height > kMaxElevatorHeightMeters) {
+  m_motor.set(0);
+}
+
+// Limit switches
+if (m_topLimitSwitch.get()) {
+  // At top limit
+  if (motorOutput > 0) {
+    motorOutput = 0;  // Don't go higher
+  }
+}
+```
+
+## Running in Simulation
+
+1. Run robot simulation
+2. Open Glass or Shuffleboard
+3. Add "Elevator Sim" Mechanism2d widget
+4. Enable teleoperated mode
+5. Press joystick trigger:
+   - Elevator rises smoothly to 0.75m
+   - Observe trapezoidal velocity profile
+6. Release trigger:
+   - Elevator lowers back to 0m
+   - Watch feedforward compensate for gravity
+
+## What to Observe
+
+- **Smooth motion**: No jerky starts/stops due to motion profiling
+- **Gravity compensation**: Elevator doesn't fall when stopped (feedforward kG)
+- **Velocity limiting**: Elevator respects max speed constraint
+- **Battery voltage**: Drops when elevator is accelerating upward
+- **Current draw**: Higher when moving up vs. moving down
+
+## Advantages Over Simple PID
+
+**Without feedforward:**
+- Large steady-state error due to gravity
+- Slow response (needs high kI to fight gravity)
+- Overshoot and oscillation
+
+**With feedforward:**
+- Minimal steady-state error
+- Fast, smooth response
+- Little to no overshoot
+
+## Source Location
+
+- Java: `wpilibjExamples/src/main/java/edu/wpi/first/wpilibj/examples/elevatorsimulation/`
+- C++: `wpilibcExamples/src/main/cpp/examples/ElevatorSimulation/`

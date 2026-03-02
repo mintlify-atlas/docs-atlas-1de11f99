@@ -1,0 +1,262 @@
+---
+title: WPILibJ (Java) API
+description: Java implementation of WPILib for FRC robot programming
+---
+
+WPILibJ is the Java implementation of WPILib, providing a comprehensive framework for programming FRC robots in Java.
+
+## Package Structure
+
+The main package is `edu.wpi.first.wpilibj` and contains all core robot programming APIs.
+
+## Core Robot Classes
+
+<CardGroup cols={2}>
+  <Card title="TimedRobot" icon="robot" href="#timedrobot">
+    Event-driven robot framework with periodic callbacks
+  </Card>
+  <Card title="DriverStation" icon="gamepad" href="#driverstation">
+    Interface to FMS and driver station data
+  </Card>
+  <Card title="RobotController" icon="microchip" href="#robotcontroller">
+    Access to roboRIO system-level functions
+  </Card>
+  <Card title="RobotBase" icon="gear" href="#robotbase">
+    Base class for all robot programs
+  </Card>
+</CardGroup>
+
+## Hardware I/O
+
+### Digital I/O
+
+| Class | Description |
+|-------|-------------|
+| `DigitalInput` | Read digital input signals |
+| `DigitalOutput` | Control digital output signals |
+| `Counter` | Count digital pulses and edges |
+| `Encoder` | Quadrature encoder support |
+| `DutyCycle` | Read PWM duty cycle signals |
+| `DutyCycleEncoder` | Absolute encoders using duty cycle |
+
+### Analog I/O
+
+| Class | Description |
+|-------|-------------|
+| `AnalogInput` | Read analog voltage inputs (0-5V) |
+| `AnalogOutput` | Generate analog voltage outputs |
+| `AnalogEncoder` | Analog absolute encoder support |
+| `AnalogPotentiometer` | Potentiometer input with scaling |
+| `AnalogTrigger` | Trigger actions based on analog thresholds |
+
+### Motor Controllers
+
+| Class | Description |
+|-------|-------------|
+| `PWMSparkMax` | Control REV Robotics SPARK MAX |
+| `PWMTalonSRX` | Control CTRE Talon SRX |
+| `PWMVictorSPX` | Control CTRE Victor SPX |
+| `Spark` | Generic SPARK controller |
+| `Talon` | Generic Talon controller |
+| `VictorSP` | Victor SP controller |
+| `Servo` | Standard servo control |
+
+### Pneumatics
+
+| Class | Description |
+|-------|-------------|
+| `Compressor` | Control pneumatic compressor |
+| `Solenoid` | Single solenoid valve control |
+| `DoubleSolenoid` | Double solenoid valve control |
+
+## Sensors
+
+<CardGroup cols={2}>
+  <Card title="Gyroscopes" icon="compass">
+    - `ADIS16448_IMU` - Analog Devices IMU
+    - `ADIS16470_IMU` - Analog Devices IMU
+    - `ADXRS450_Gyro` - Analog Devices SPI gyro
+    - `AnalogGyro` - Analog gyroscope
+  </Card>
+  <Card title="Accelerometers" icon="gauge">
+    - `ADXL345_I2C` - I2C accelerometer
+    - `ADXL345_SPI` - SPI accelerometer
+    - `ADXL362` - SPI accelerometer
+    - `BuiltInAccelerometer` - roboRIO accelerometer
+  </Card>
+</CardGroup>
+
+## TimedRobot
+
+The `TimedRobot` class provides a framework where methods are called periodically at a fixed rate.
+
+```java
+package edu.wpi.first.wpilibj;
+
+public class TimedRobot extends IterativeRobotBase {
+  // Default period is 20ms (50Hz)
+  public static final double kDefaultPeriod = 0.02;
+  
+  // Constructor
+  public TimedRobot();
+  public TimedRobot(double period);
+  
+  // Add custom periodic callback
+  public void addPeriodic(Runnable callback, double periodSeconds);
+  public void addPeriodic(Runnable callback, double periodSeconds, double offsetSeconds);
+}
+```
+
+### Example Usage
+
+```java
+import edu.wpi.first.wpilibj.TimedRobot;
+import edu.wpi.first.wpilibj.motorcontrol.Spark;
+
+public class MyRobot extends TimedRobot {
+  private Spark motor;
+  
+  @Override
+  public void robotInit() {
+    motor = new Spark(0);
+  }
+  
+  @Override
+  public void teleopPeriodic() {
+    // Called every 20ms during teleop
+    motor.set(0.5);
+  }
+  
+  @Override
+  public void disabledInit() {
+    motor.set(0.0);
+  }
+}
+```
+
+## DriverStation
+
+Provides access to driver station data and FMS information.
+
+```java
+package edu.wpi.first.wpilibj;
+
+public final class DriverStation {
+  // Get singleton instance
+  public static DriverStation getInstance();
+  
+  // Robot state
+  public static boolean isEnabled();
+  public static boolean isDisabled();
+  public static boolean isAutonomous();
+  public static boolean isTeleop();
+  public static boolean isTest();
+  
+  // Alliance and location
+  public static Optional<Alliance> getAlliance();
+  public static OptionalInt getLocation();
+  
+  // Match info
+  public static double getMatchTime();
+  public static MatchType getMatchType();
+  public static int getMatchNumber();
+  
+  // Joystick input
+  public static double getStickAxis(int stick, int axis);
+  public static boolean getStickButton(int stick, int button);
+  public static int getStickPOV(int stick, int pov);
+  
+  public enum Alliance { Red, Blue }
+  public enum MatchType { None, Practice, Qualification, Elimination }
+}
+```
+
+## AddressableLED
+
+Control addressable RGB LED strips.
+
+```java
+package edu.wpi.first.wpilibj;
+
+public class AddressableLED implements AutoCloseable {
+  public AddressableLED(int port);
+  
+  public void setLength(int length);
+  public void setData(AddressableLEDBuffer data);
+  public void start();
+  public void stop();
+}
+
+public class AddressableLEDBuffer {
+  public AddressableLEDBuffer(int length);
+  
+  public void setRGB(int index, int r, int g, int b);
+  public void setHSV(int index, int h, int s, int v);
+  public void setLED(int index, Color color);
+}
+```
+
+## Filesystem
+
+Access robot filesystem paths.
+
+```java
+package edu.wpi.first.wpilibj;
+
+public final class Filesystem {
+  // Get deploy directory path
+  public static Path getDeployDirectory();
+  
+  // Get operating directory
+  public static Path getOperatingDirectory();
+  
+  // Check if running on real robot
+  public static boolean isReal();
+}
+```
+
+## CAN Communication
+
+| Class | Description |
+|-------|-------------|
+| `CAN` | Low-level CAN bus communication |
+| `CANData` | CAN message data container |
+
+## Data Logging
+
+| Class | Description |
+|-------|-------------|
+| `DataLogManager` | Manage robot data logging |
+| `Alert` | Create and manage robot alerts |
+
+## Utility Classes
+
+| Class | Description |
+|-------|-------------|
+| `Timer` | Timing and delay utilities |
+| `Watchdog` | Monitor loop timing |
+| `Notifier` | Schedule callbacks |
+| `EventLoop` | Event-driven programming |
+| `AsynchronousInterrupt` | Handle hardware interrupts |
+
+## Source Code
+
+View the full source code on GitHub:
+- [WPILibJ Java Source](https://github.com/wpilibsuite/allwpilib/tree/main/wpilibj/src/main/java/edu/wpi/first/wpilibj)
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card title="WPILibC API" icon="c" href="/api/wpilibc/overview">
+    C++ implementation of WPILib
+  </Card>
+  <Card title="Command Framework" icon="list-check" href="/api/wpilibnewcommands/overview">
+    Command-based programming framework
+  </Card>
+  <Card title="HAL API" icon="microchip" href="/api/hal/overview">
+    Hardware Abstraction Layer
+  </Card>
+  <Card title="WPIMath" icon="square-root-variable" href="/api/wpimath/overview">
+    Mathematics and control libraries
+  </Card>
+</CardGroup>

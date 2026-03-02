@@ -1,0 +1,503 @@
+---
+title: WPINet API
+description: Networking utilities for HTTP servers, WebSockets, and network services
+---
+
+WPINet provides networking utilities built on libuv, including HTTP servers, WebSocket support, and multicast service discovery.
+
+## Overview
+
+WPINet offers:
+- HTTP web server with WebSocket support
+- Network service announcement and discovery
+- TCP/UDP client and server utilities
+- Port forwarding
+- Network stream abstractions
+
+<Note>
+  WPINet is primarily a C++ library used internally by WPILib components like CSCore, NetworkTables, and the camera server.
+</Note>
+
+## Core Components
+
+<CardGroup cols={2}>
+  <Card title="Web Server" icon="server" href="#web-server">
+    HTTP server with WebSocket support
+  </Card>
+  <Card title="WebSockets" icon="arrows-left-right" href="#websockets">
+    Bidirectional network communication
+  </Card>
+  <Card title="Service Discovery" icon="broadcast-tower" href="#service-discovery">
+    mDNS service announcement and resolution
+  </Card>
+  <Card title="Port Forwarding" icon="network-wired" href="#port-forwarding">
+    Forward ports between network interfaces
+  </Card>
+</CardGroup>
+
+## Web Server
+
+Create HTTP web servers with WebSocket support.
+
+### Basic HTTP Server
+
+```cpp
+#include <wpinet/WebServer.h>
+#include <wpinet/HttpServerConnection.h>
+
+class MyServer : public wpi::HttpServerConnection {
+ public:
+  void ProcessRequest() override {
+    // Get request info
+    wpi::StringRef path = GetUrl().path;
+    wpi::StringRef method = GetMethod();
+    
+    if (path == "/") {
+      // Send response
+      SendResponse(200, "OK", "text/html", 
+                   "<html><body>Hello World</body></html>");
+    } else if (path == "/api/data") {
+      // JSON response
+      SendResponse(200, "OK", "application/json",
+                   "{\"value\": 42}");
+    } else {
+      // 404 Not Found
+      SendResponse(404, "Not Found", "text/plain", "Not Found");
+    }
+  }
+};
+
+// Create and start server
+auto server = std::make_shared<wpi::WebServer<MyServer>>(8080);
+server->Start();
+```
+
+### Serving Static Files
+
+```cpp
+#include <wpinet/WebServer.h>
+#include <wpi/FileSystem.h>
+
+void ProcessRequest() override {
+  wpi::StringRef path = GetUrl().path;
+  
+  // Serve files from directory
+  fs::path filePath = fs::path("/www") / path.str();
+  
+  if (fs::exists(filePath) && fs::is_regular_file(filePath)) {
+    // Read file
+    std::error_code ec;
+    auto mapped = wpi::MappedFileRegion::Open(
+        filePath.string(),
+        wpi::MappedFileRegion::readonly,
+        ec);
+    
+    if (!ec) {
+      // Determine content type
+      std::string contentType = GetContentType(filePath.extension());
+      
+      // Send file
+      SendResponse(200, "OK", contentType,
+                   wpi::StringRef(mapped->const_data(), mapped->size()));
+    } else {
+      SendResponse(500, "Internal Error", "text/plain", "Error reading file");
+    }
+  } else {
+    SendResponse(404, "Not Found", "text/plain", "Not Found");
+  }
+}
+
+std::string GetContentType(const std::string& ext) {
+  if (ext == ".html") return "text/html";
+  if (ext == ".css") return "text/css";
+  if (ext == ".js") return "application/javascript";
+  if (ext == ".json") return "application/json";
+  if (ext == ".png") return "image/png";
+  if (ext == ".jpg" || ext == ".jpeg") return "image/jpeg";
+  return "application/octet-stream";
+}
+```
+
+## WebSockets
+
+WebSocket support for bidirectional communication.
+
+### WebSocket Server
+
+```cpp
+#include <wpinet/HttpWebSocketServerConnection.h>
+
+class MyWebSocket : public wpi::HttpWebSocketServerConnection {
+ protected:
+  void ProcessWsUpgrade() override {
+    wpi::StringRef protocol = GetProtocol();
+    
+    // Accept WebSocket upgrade
+    if (protocol == "my-protocol") {
+      AcceptWs();
+      fmt::print("WebSocket connected\n");
+    } else {
+      RejectWs(400, "Bad Request");
+    }
+  }
+  
+  void ProcessWsText(std::string_view data) override {
+    fmt::print("Received text: {}\n", data);
+    
+    // Echo back
+    SendWsText(data);
+  }
+  
+  void ProcessWsBinary(std::span<const uint8_t> data) override {
+    fmt::print("Received {} bytes\n", data.size());
+    
+    // Echo back
+    SendWsBinary(data);
+  }
+  
+  void ProcessWsClose(uint16_t code, std::string_view reason) override {
+    fmt::print("WebSocket closed: {} - {}\n", code, reason);
+  }
+};
+
+// Create WebSocket server
+auto server = std::make_shared<wpi::WebServer<MyWebSocket>>(8080);
+server->Start();
+```
+
+### WebSocket Client
+
+```cpp
+#include <wpinet/WebSocket.h>
+
+class MyClient {
+ public:
+  void Connect() {
+    auto ws = std::make_shared<wpi::WebSocket>();
+    
+    // Set callbacks
+    ws->text.connect([](std::string_view data, bool isLast) {
+      fmt::print("Received: {}\n", data);
+    });
+    
+    ws->binary.connect([](std::span<const uint8_t> data, bool isLast) {
+      fmt::print("Received {} bytes\n", data.size());
+    });
+    
+    ws->closed.connect([](uint16_t code, std::string_view reason) {
+      fmt::print("Closed: {}\n", reason);
+    });
+    
+    // Connect
+    ws->Connect("ws://10.12.34.2:8080/ws", "my-protocol");
+    
+    // Send data
+    ws->SendText("Hello Server");
+  }
+};
+```
+
+## Service Discovery
+
+Multicast DNS service announcement and discovery.
+
+### Service Announcer
+
+```cpp
+#include <wpinet/MulticastServiceAnnouncer.h>
+
+// Create announcer
+wpi::MulticastServiceAnnouncer announcer;
+
+// Start announcing service
+announcer.Start();
+announcer.Add(
+    "My Robot Camera",      // Service name
+    "_camera._tcp",         // Service type
+    8080,                   // Port
+    {                       // TXT records
+        {"path", "/stream"},
+        {"format", "mjpeg"}
+    }
+);
+
+// Stop announcing
+announcer.Stop();
+```
+
+### Service Resolver
+
+```cpp
+#include <wpinet/MulticastServiceResolver.h>
+
+// Create resolver
+wpi::MulticastServiceResolver resolver;
+
+// Set callback for service events
+resolver.serviceData.connect(
+    [](const wpi::MulticastServiceResolver::ServiceData& data) {
+      fmt::print("Service: {} at {}:{}\n",
+                 data.serviceName, data.hostName, data.port);
+      
+      for (const auto& [key, value] : data.txt) {
+        fmt::print("  {}: {}\n", key, value);
+      }
+    });
+
+// Start resolving
+resolver.Start("_camera._tcp");
+
+// Stop resolving
+resolver.Stop();
+```
+
+## Port Forwarding
+
+Forward TCP ports between network interfaces.
+
+```cpp
+#include <wpinet/PortForwarder.h>
+
+wpi::PortForwarder forwarder;
+
+// Forward local port 5800 to remote 10.12.34.2:5800
+forwarder.Add(
+    5800,              // Local port
+    "10.12.34.2",      // Remote host
+    5800               // Remote port
+);
+
+// Remove forwarding
+forwarder.Remove(5800);
+```
+
+## Network Streams
+
+### TCP Client
+
+```cpp
+#include <wpinet/NetworkStream.h>
+#include <wpinet/raw_socket_istream.h>
+#include <wpinet/raw_socket_ostream.h>
+
+// Connect to server
+std::error_code ec;
+auto stream = wpi::NetworkStream::connect(
+    "10.12.34.2",
+    8080,
+    wpi::Logger::GetInstance(),
+    ec);
+
+if (!ec) {
+  // Wrap socket in streams
+  wpi::raw_socket_istream input{stream.get()};
+  wpi::raw_socket_ostream output{stream.get()};
+  
+  // Write data
+  output << "GET / HTTP/1.1\r\n";
+  output << "Host: 10.12.34.2\r\n";
+  output << "\r\n";
+  output.flush();
+  
+  // Read response
+  std::string line;
+  while (std::getline(input, line)) {
+    fmt::print("{}\n", line);
+  }
+}
+```
+
+### UDP Client
+
+```cpp
+#include <wpinet/UDPClient.h>
+
+// Create UDP client
+wpi::UDPClient client{"10.12.34.2", 5800};
+
+// Send data
+std::string message = "Hello UDP";
+client.send(message.data(), message.size());
+
+// Receive data
+char buffer[1024];
+ssize_t received = client.receive(buffer, sizeof(buffer));
+if (received > 0) {
+  fmt::print("Received: {}\n", 
+             std::string_view(buffer, received));
+}
+```
+
+## URL Parsing
+
+```cpp
+#include <wpinet/UrlParser.h>
+
+// Parse URL
+wpi::UrlParser parser;
+if (parser.Parse("http://10.12.34.2:8080/path?query=value")) {
+  fmt::print("Scheme: {}\n", parser.GetScheme());
+  fmt::print("Host: {}\n", parser.GetHost());
+  fmt::print("Port: {}\n", parser.GetPort());
+  fmt::print("Path: {}\n", parser.GetPath());
+  fmt::print("Query: {}\n", parser.GetQuery());
+}
+```
+
+## HTTP Utilities
+
+### MIME Types
+
+```cpp
+#include <wpinet/MimeTypes.h>
+
+// Get MIME type from file extension
+std::string_view mime = wpi::GetMimeTypeFromPath("/path/to/file.json");
+// Returns: "application/json"
+```
+
+### URL Encoding
+
+```cpp
+#include <wpinet/HttpUtil.h>
+
+// URL encode
+std::string encoded = wpi::UrlEncode("hello world");
+// Returns: "hello%20world"
+
+// URL decode
+std::string decoded = wpi::UrlDecode("hello%20world");
+// Returns: "hello world"
+
+// Escape HTML
+std::string html = wpi::EscapeHtml("<script>alert('xss')</script>");
+```
+
+## Network Acceptor
+
+Accept incoming TCP connections.
+
+```cpp
+#include <wpinet/NetworkAcceptor.h>
+
+class MyConnectionHandler {
+ public:
+  void operator()(uv::Stream& stream) {
+    fmt::print("New connection\n");
+    
+    // Handle connection
+    auto conn = std::make_shared<MyConnection>(stream.shared_from_this());
+  }
+};
+
+// Create acceptor
+wpi::NetworkAcceptor<MyConnectionHandler> acceptor(
+    8080,
+    wpi::Logger::GetInstance());
+
+acceptor.Start();
+```
+
+## Event Loop
+
+### Event Loop Runner
+
+```cpp
+#include <wpinet/EventLoopRunner.h>
+
+// Create event loop
+wpi::EventLoopRunner loop;
+
+// Execute on loop
+loop.ExecAsync([](uv::Loop& loop) {
+  // Code runs on event loop thread
+  fmt::print("Running on loop\n");
+});
+```
+
+## DS Client
+
+Driver Station network protocol client.
+
+```cpp
+#include <wpinet/DsClient.h>
+
+// Create DS client
+wpi::DsClient client;
+
+// Set callbacks
+client.controlWord.connect([](const wpi::ControlWord& word) {
+  fmt::print("Enabled: {}\n", word.GetEnabled());
+  fmt::print("Autonomous: {}\n", word.GetAutonomous());
+});
+
+client.allianceStation.connect([](wpi::AllianceStation station) {
+  fmt::print("Alliance: {}\n", static_cast<int>(station));
+});
+
+// Start client
+client.Start();
+```
+
+## Hostname Resolution
+
+```cpp
+#include <wpinet/hostname.h>
+
+// Get hostname
+std::string hostname = wpi::GetHostname();
+fmt::print("Hostname: {}\n", hostname);
+```
+
+## Platform Support
+
+WPINet is built on libuv and supports:
+- Linux (including Raspberry Pi)
+- macOS
+- Windows
+- roboRIO (NI Linux RT)
+
+## Common Use Cases
+
+### Camera Streaming
+
+```cpp
+// CSCore uses WPINet for camera streaming
+#include <cscore.h>
+
+cs::MjpegServer server{"server", 8080};
+server.SetSource(camera);
+// Uses WPINet HTTP server internally
+```
+
+### NetworkTables Communication
+
+```cpp
+// NetworkTables uses WPINet for network communication
+#include <networktables/NetworkTableInstance.h>
+
+nt::NetworkTableInstance inst = nt::NetworkTableInstance::GetDefault();
+inst.StartClient4("client");
+inst.SetServerTeam(1234);
+// Uses WPINet TCP/UDP internally
+```
+
+## Source Code
+
+View the full source code on GitHub:
+- [WPINet Headers](https://github.com/wpilibsuite/allwpilib/tree/main/wpinet/src/main/native/include/wpinet)
+- [WPINet Implementation](https://github.com/wpilibsuite/allwpilib/tree/main/wpinet/src/main/native/cpp)
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card title="CSCore" icon="camera" href="/api/cscore/overview">
+    Camera streaming using WPINet
+  </Card>
+  <Card title="NetworkTables" icon="network-wired" href="/api/ntcore/overview">
+    Network communication protocol
+  </Card>
+  <Card title="WPIUtil" icon="toolbox" href="/api/wpiutil/overview">
+    Common utilities and data structures
+  </Card>
+</CardGroup>

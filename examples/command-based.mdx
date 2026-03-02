@@ -1,0 +1,284 @@
+---
+title: Command-Based Examples
+description: Complete command-based robot using subsystems, commands, and button bindings
+---
+
+This example demonstrates the command-based programming paradigm with a complete robot featuring a drivetrain and hatch mechanism.
+
+## Command-Based Robot Structure
+
+The command-based framework organizes code into:
+- **Subsystems**: Hardware components (drivetrain, elevator, etc.)
+- **Commands**: Actions that use subsystems
+- **RobotContainer**: Binds commands to buttons and manages subsystems
+- **Robot**: Runs the CommandScheduler
+
+## Main Robot Class
+
+<Tabs>
+  <Tab title="Java">
+    ```java
+    package edu.wpi.first.wpilibj.examples.hatchbotinlined;
+
+    import edu.wpi.first.wpilibj.DataLogManager;
+    import edu.wpi.first.wpilibj.DriverStation;
+    import edu.wpi.first.wpilibj.TimedRobot;
+    import edu.wpi.first.wpilibj2.command.Command;
+    import edu.wpi.first.wpilibj2.command.CommandScheduler;
+
+    public class Robot extends TimedRobot {
+      private Command m_autonomousCommand;
+      private final RobotContainer m_robotContainer;
+
+      public Robot() {
+        // Instantiate our RobotContainer.  This will perform all our button bindings, and put our
+        // autonomous chooser on the dashboard.
+        m_robotContainer = new RobotContainer();
+
+        // Start recording to data log
+        DataLogManager.start();
+
+        // Record DS control and joystick data.
+        DriverStation.startDataLog(DataLogManager.getLog(), true);
+      }
+
+      @Override
+      public void robotPeriodic() {
+        // Runs the Scheduler.  This is responsible for polling buttons, adding newly-scheduled
+        // commands, running already-scheduled commands, removing finished or interrupted commands,
+        // and running subsystem periodic() methods.  This must be called from the robot's periodic
+        // block in order for anything in the Command-based framework to work.
+        CommandScheduler.getInstance().run();
+      }
+
+      @Override
+      public void autonomousInit() {
+        m_autonomousCommand = m_robotContainer.getAutonomousCommand();
+
+        // schedule the autonomous command (example)
+        if (m_autonomousCommand != null) {
+          CommandScheduler.getInstance().schedule(m_autonomousCommand);
+        }
+      }
+
+      @Override
+      public void teleopInit() {
+        // This makes sure that the autonomous stops running when
+        // teleop starts running. If you want the autonomous to
+        // continue until interrupted by another command, remove
+        // this line or comment it out.
+        if (m_autonomousCommand != null) {
+          m_autonomousCommand.cancel();
+        }
+      }
+
+      @Override
+      public void testInit() {
+        // Cancels all running commands at the start of test mode.
+        CommandScheduler.getInstance().cancelAll();
+      }
+    }
+    ```
+  </Tab>
+  <Tab title="C++">
+    ```cpp
+    #include "Robot.h"
+
+    #include <frc/DataLogManager.h>
+    #include <frc/DriverStation.h>
+    #include <frc2/command/CommandScheduler.h>
+
+    Robot::Robot() {
+      // Start recording to data log
+      frc::DataLogManager::Start();
+
+      // Record DS control and joystick data.
+      frc::DriverStation::StartDataLog(frc::DataLogManager::GetLog(), true);
+    }
+
+    void Robot::RobotPeriodic() {
+      frc2::CommandScheduler::GetInstance().Run();
+    }
+
+    void Robot::AutonomousInit() {
+      m_autonomousCommand = m_container.GetAutonomousCommand();
+
+      if (m_autonomousCommand != nullptr) {
+        frc2::CommandScheduler::GetInstance().Schedule(m_autonomousCommand);
+      }
+    }
+
+    void Robot::TeleopInit() {
+      // This makes sure that the autonomous stops running when
+      // teleop starts running. If you want the autonomous to
+      // continue until interrupted by another command, remove
+      // this line or comment it out.
+      if (m_autonomousCommand != nullptr) {
+        m_autonomousCommand->Cancel();
+        m_autonomousCommand = nullptr;
+      }
+    }
+
+    #ifndef RUNNING_FRC_TESTS
+    int main() {
+      return frc::StartRobot<Robot>();
+    }
+    #endif
+    ```
+  </Tab>
+</Tabs>
+
+## RobotContainer Class
+
+<Tabs>
+  <Tab title="Java">
+    ```java
+    package edu.wpi.first.wpilibj.examples.hatchbotinlined;
+
+    import edu.wpi.first.wpilibj.PS4Controller;
+    import edu.wpi.first.wpilibj2.command.Command;
+    import edu.wpi.first.wpilibj2.command.Commands;
+    import edu.wpi.first.wpilibj2.command.button.CommandPS4Controller;
+
+    public class RobotContainer {
+      // The robot's subsystems
+      private final DriveSubsystem m_robotDrive = new DriveSubsystem();
+      private final HatchSubsystem m_hatchSubsystem = new HatchSubsystem();
+
+      // The driver's controller
+      CommandPS4Controller m_driverController =
+          new CommandPS4Controller(OIConstants.kDriverControllerPort);
+
+      public RobotContainer() {
+        configureButtonBindings();
+
+        // Configure default commands
+        m_robotDrive.setDefaultCommand(
+            Commands.run(
+                () ->
+                    m_robotDrive.arcadeDrive(
+                        -m_driverController.getLeftY(), -m_driverController.getRightX()),
+                m_robotDrive));
+      }
+
+      private void configureButtonBindings() {
+        // Grab the hatch when the Circle button is pressed.
+        m_driverController.circle().onTrue(m_hatchSubsystem.grabHatchCommand());
+        // Release the hatch when the Square button is pressed.
+        m_driverController.square().onTrue(m_hatchSubsystem.releaseHatchCommand());
+        // While holding R1, drive at half speed
+        m_driverController
+            .R1()
+            .onTrue(Commands.runOnce(() -> m_robotDrive.setMaxOutput(0.5)))
+            .onFalse(Commands.runOnce(() -> m_robotDrive.setMaxOutput(1)));
+      }
+
+      public Command getAutonomousCommand() {
+        return m_chooser.getSelected();
+      }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## What This Example Demonstrates
+
+### CommandScheduler
+
+The heart of the command-based framework. In `robotPeriodic()`:
+
+```java
+CommandScheduler.getInstance().run();
+```
+
+This one call:
+- Polls all button bindings
+- Runs all scheduled commands
+- Calls `periodic()` on all subsystems
+- Removes finished commands
+- Handles command interruption
+
+### Default Commands
+
+Subsystems can have a default command that runs when no other command is using the subsystem:
+
+```java
+m_robotDrive.setDefaultCommand(
+    Commands.run(
+        () -> m_robotDrive.arcadeDrive(
+            -m_driverController.getLeftY(), 
+            -m_driverController.getRightX()),
+        m_robotDrive));
+```
+
+This makes the drivetrain respond to joystick input automatically.
+
+### Button Bindings
+
+Bind commands to controller buttons:
+
+```java
+// Run command when button is pressed
+m_driverController.circle().onTrue(m_hatchSubsystem.grabHatchCommand());
+
+// Run command when button is released
+m_driverController.square().onFalse(someCommand);
+
+// Run command while button is held
+m_driverController.triangle().whileTrue(someCommand);
+
+// Toggle between two states
+m_driverController
+    .R1()
+    .onTrue(Commands.runOnce(() -> m_robotDrive.setMaxOutput(0.5)))
+    .onFalse(Commands.runOnce(() -> m_robotDrive.setMaxOutput(1)));
+```
+
+### Command Factories
+
+The `Commands` class provides factories for common command patterns:
+
+- `Commands.run()`: Runs continuously (never ends)
+- `Commands.runOnce()`: Runs once and immediately ends
+- `Commands.sequence()`: Runs commands in order
+- `Commands.parallel()`: Runs commands simultaneously
+- `Commands.waitSeconds()`: Waits for a duration
+
+### Subsystem Requirements
+
+Commands declare which subsystems they use. The scheduler ensures only one command can use a subsystem at a time:
+
+```java
+Commands.run(() -> m_robotDrive.arcadeDrive(...), m_robotDrive)
+//                                                  ^^^^^^^^^^^^
+//                                                  Requires m_robotDrive
+```
+
+### Autonomous vs Teleop
+
+- `autonomousInit()`: Schedules the autonomous command
+- `teleopInit()`: Cancels autonomous, allowing default commands to run
+
+### Data Logging
+
+```java
+DataLogManager.start();
+DriverStation.startDataLog(DataLogManager.getLog(), true);
+```
+
+Automatically logs robot state and joystick data for analysis after matches.
+
+## Running in Simulation
+
+1. Deploy the code
+2. In autonomous: Watch the autonomous command execute
+3. In teleop:
+   - Joystick controls the drivetrain
+   - Circle button grabs hatch
+   - Square button releases hatch
+   - R1 button toggles half-speed mode
+
+## Source Location
+
+- Java: `wpilibjExamples/src/main/java/edu/wpi/first/wpilibj/examples/hatchbotinlined/`
+- C++: `wpilibcExamples/src/main/cpp/examples/HatchbotInlined/`

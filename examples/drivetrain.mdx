@@ -1,0 +1,177 @@
+---
+title: Drivetrain Examples
+description: Arcade drive implementation for differential drivetrains
+---
+
+This example shows how to implement arcade-style driving where one joystick axis controls forward/backward and another controls turning.
+
+## Arcade Drive Example
+
+<Tabs>
+  <Tab title="Java">
+    ```java
+    package edu.wpi.first.wpilibj.examples.arcadedrive;
+
+    import edu.wpi.first.util.sendable.SendableRegistry;
+    import edu.wpi.first.wpilibj.Joystick;
+    import edu.wpi.first.wpilibj.TimedRobot;
+    import edu.wpi.first.wpilibj.drive.DifferentialDrive;
+    import edu.wpi.first.wpilibj.motorcontrol.PWMSparkMax;
+
+    /**
+     * This is a demo program showing the use of the DifferentialDrive class. Runs the motors with
+     * arcade steering.
+     */
+    public class Robot extends TimedRobot {
+      private final PWMSparkMax m_leftMotor = new PWMSparkMax(0);
+      private final PWMSparkMax m_rightMotor = new PWMSparkMax(1);
+      private final DifferentialDrive m_robotDrive =
+          new DifferentialDrive(m_leftMotor::set, m_rightMotor::set);
+      private final Joystick m_stick = new Joystick(0);
+
+      public Robot() {
+        SendableRegistry.addChild(m_robotDrive, m_leftMotor);
+        SendableRegistry.addChild(m_robotDrive, m_rightMotor);
+
+        // We need to invert one side of the drivetrain so that positive voltages
+        // result in both sides moving forward. Depending on how your robot's
+        // gearbox is constructed, you might have to invert the left side instead.
+        m_rightMotor.setInverted(true);
+      }
+
+      @Override
+      public void teleopPeriodic() {
+        // Drive with arcade drive.
+        // That means that the Y axis drives forward
+        // and backward, and the X turns left and right.
+        m_robotDrive.arcadeDrive(-m_stick.getY(), -m_stick.getX());
+      }
+    }
+    ```
+  </Tab>
+  <Tab title="C++">
+    ```cpp
+    #include <frc/Joystick.h>
+    #include <frc/TimedRobot.h>
+    #include <frc/drive/DifferentialDrive.h>
+    #include <frc/motorcontrol/PWMSparkMax.h>
+
+    /**
+     * This is a demo program showing the use of the DifferentialDrive class.
+     * Runs the motors with arcade steering.
+     */
+    class Robot : public frc::TimedRobot {
+      frc::PWMSparkMax m_leftMotor{0};
+      frc::PWMSparkMax m_rightMotor{1};
+      frc::DifferentialDrive m_robotDrive{
+          [&](double output) { m_leftMotor.Set(output); },
+          [&](double output) { m_rightMotor.Set(output); }};
+      frc::Joystick m_stick{0};
+
+     public:
+      Robot() {
+        wpi::SendableRegistry::AddChild(&m_robotDrive, &m_leftMotor);
+        wpi::SendableRegistry::AddChild(&m_robotDrive, &m_rightMotor);
+
+        // We need to invert one side of the drivetrain so that positive voltages
+        // result in both sides moving forward. Depending on how your robot's
+        // gearbox is constructed, you might have to invert the left side instead.
+        m_rightMotor.SetInverted(true);
+      }
+
+      void TeleopPeriodic() override {
+        // Drive with arcade style
+        m_robotDrive.ArcadeDrive(-m_stick.GetY(), -m_stick.GetX());
+      }
+    };
+
+    #ifndef RUNNING_FRC_TESTS
+    int main() {
+      return frc::StartRobot<Robot>();
+    }
+    #endif
+    ```
+  </Tab>
+</Tabs>
+
+## What This Example Demonstrates
+
+### DifferentialDrive Class
+
+The `DifferentialDrive` class provides several drive modes:
+
+**Arcade Drive:**
+```java
+arcadeDrive(double xSpeed, double zRotation)
+```
+- `xSpeed`: Forward/backward speed (-1.0 to 1.0)
+- `zRotation`: Rotation speed (-1.0 to 1.0)
+- Third parameter (optional): Enable input squaring for finer control at low speeds
+
+**Tank Drive:**
+```java
+tankDrive(double leftSpeed, double rightSpeed)
+```
+- Direct control of left and right sides
+- Good for drivers familiar with tank-style controls
+
+**Curvature Drive:**
+```java
+curvatureDrive(double xSpeed, double zRotation, boolean isQuickTurn)
+```
+- More like car steering
+- `isQuickTurn`: When true, enables turning in place
+
+### Input Squaring
+
+By default, `arcadeDrive()` squares inputs while preserving sign:
+
+```java
+// With squaring (default):
+Input: 0.5 → Output: 0.25 (0.5²)
+Input: -0.5 → Output: -0.25 (-(0.5²))
+
+// Without squaring:
+m_robotDrive.arcadeDrive(xSpeed, rotation, false);
+```
+
+Squaring provides:
+- Finer control at low speeds
+- More aggressive response at high speeds
+
+### Motor Inversion
+
+For a differential drive, motors face opposite directions. Invert one side so positive values drive both forward:
+
+```java
+m_rightMotor.setInverted(true);
+```
+
+Which side to invert depends on your mechanical setup.
+
+### Joystick Negation
+
+Joysticks return negative values when pushed forward (up). Negate to make forward motion intuitive:
+
+```java
+m_robotDrive.arcadeDrive(-m_stick.getY(), -m_stick.getX());
+```
+
+## Running in Simulation
+
+1. Open the robot simulator
+2. Enable teleoperated mode
+3. Use a joystick:
+   - Y-axis (forward/back): Push forward to drive forward
+   - X-axis (left/right): Push left to turn left
+
+## Related Examples
+
+- Tank Drive: Two-stick control for differential drives
+- Mecanum Drive: Omnidirectional driving with mecanum wheels
+- Swerve Drive: Independent module steering and driving
+
+## Source Location
+
+- Java: `wpilibjExamples/src/main/java/edu/wpi/first/wpilibj/examples/arcadedrive/Robot.java`
+- C++: `wpilibcExamples/src/main/cpp/examples/ArcadeDrive/cpp/Robot.cpp`

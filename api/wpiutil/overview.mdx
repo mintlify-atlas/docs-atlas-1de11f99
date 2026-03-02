@@ -1,0 +1,523 @@
+---
+title: WPIUtil API
+description: Common utilities, data structures, and system interfaces for WPILib
+---
+
+WPIUtil provides essential utility classes, data structures, logging, and system-level functionality used throughout WPILib.
+
+## Overview
+
+WPIUtil is a foundational library that provides:
+- Data logging and serialization
+- Concurrent data structures
+- Network tables integration
+- File system utilities
+- JSON and MessagePack support
+- Protocol Buffers helpers
+
+## Package Structure
+
+### Java
+- `edu.wpi.first.util` - Core utilities
+- `edu.wpi.first.util.datalog` - Data logging
+- `edu.wpi.first.util.sendable` - Sendable interface
+- `edu.wpi.first.util.struct` - Struct serialization
+- `edu.wpi.first.util.proto` - Protocol Buffers
+
+### C++
+- `wpi` namespace for all classes
+- Headers in `wpi/` directory
+
+## Core Modules
+
+<CardGroup cols={2}>
+  <Card title="Data Logging" icon="database" href="#data-logging">
+    Efficient binary data logging
+  </Card>
+  <Card title="Concurrent Collections" icon="layer-group" href="#concurrent-collections">
+    Thread-safe data structures
+  </Card>
+  <Card title="Serialization" icon="file-code" href="#serialization">
+    Struct and protobuf serialization
+  </Card>
+  <Card title="System Utilities" icon="gear" href="#system-utilities">
+    File system, timing, and platform APIs
+  </Card>
+</CardGroup>
+
+## Data Logging
+
+### DataLog
+
+Efficient binary data logging system for robot telemetry.
+
+```java
+import edu.wpi.first.util.datalog.*;
+
+// Create data log
+DataLog log = new DataLog("/home/lvuser/logs");
+
+// Create log entries
+DoubleLogEntry velocityLog = new DoubleLogEntry(log, "/drive/velocity");
+BooleanLogEntry enabledLog = new BooleanLogEntry(log, "/robot/enabled");
+StringLogEntry eventLog = new StringLogEntry(log, "/robot/events");
+
+// Append data
+velocityLog.append(2.5);
+enabledLog.append(true);
+eventLog.append("Match started");
+
+// With timestamp
+velocityLog.append(2.5, timestamp);
+
+// Close log
+log.close();
+```
+
+```cpp
+#include <wpi/DataLog.h>
+#include <wpi/DataLogWriter.h>
+
+// Create data log
+wpi::log::DataLog log{"/home/lvuser/logs"};
+
+// Create log entries
+wpi::log::DoubleLogEntry velocityLog{log, "/drive/velocity"};
+wpi::log::BooleanLogEntry enabledLog{log, "/robot/enabled"};
+wpi::log::StringLogEntry eventLog{log, "/robot/events"};
+
+// Append data
+velocityLog.Append(2.5);
+enabledLog.Append(true);
+eventLog.Append("Match started");
+```
+
+### DataLogReader
+
+Read and process data log files.
+
+```java
+import edu.wpi.first.util.datalog.*;
+
+// Open log file for reading
+DataLogReader reader = new DataLogReader("logfile.wpilog");
+
+// Iterate through records
+for (DataLogRecord record : reader) {
+  if (record.isStart()) {
+    System.out.println("Entry: " + record.getStartData().name);
+  } else if (record.isFinish()) {
+    System.out.println("Finished: " + record.getEntry());
+  } else if (record.isSetMetadata()) {
+    // Handle metadata
+  } else if (record.isControl()) {
+    // Handle control record
+  }
+}
+```
+
+### Background Writer
+
+```java
+import edu.wpi.first.util.datalog.*;
+
+// Create background writer for async logging
+DataLogBackgroundWriter log = new DataLogBackgroundWriter("/home/lvuser/logs");
+
+// Use like regular DataLog
+DoubleLogEntry entry = new DoubleLogEntry(log, "/data");
+entry.append(1.23);
+
+// Automatically flushes in background thread
+```
+
+## Concurrent Collections
+
+### EventVector
+
+Thread-safe vector with event notification.
+
+```java
+import edu.wpi.first.util.EventVector;
+
+EventVector<String> events = new EventVector<>();
+
+// Add listener
+events.addListener((in) -> {
+  System.out.println("Event added: " + in);
+});
+
+// Add events
+events.add("Event 1");
+events.add("Event 2");
+```
+
+```cpp
+#include <wpi/EventVector.h>
+
+wpi::EventVector<std::string> events;
+
+// Add listener
+events.AddListener([](const std::string& event) {
+  fmt::print("Event: {}\n", event);
+});
+
+// Add events
+events.Add("Event 1");
+```
+
+### UidVector
+
+Vector with unique ID tracking for elements.
+
+```cpp
+#include <wpi/UidVector.h>
+
+wpi::UidVector<std::string, 16> items;
+
+// Add items and get unique IDs
+size_t id1 = items.Add("Item 1");
+size_t id2 = items.Add("Item 2");
+
+// Access by ID
+std::string& item = items[id1];
+
+// Remove by ID
+items.Remove(id1);
+```
+
+## Serialization
+
+### Struct Serialization
+
+Type-safe binary serialization.
+
+```java
+import edu.wpi.first.util.struct.Struct;
+import edu.wpi.first.util.struct.StructSerializable;
+
+// Define struct
+public class MyData implements StructSerializable {
+  public double value;
+  public long timestamp;
+  
+  public static final MyDataStruct struct = new MyDataStruct();
+}
+
+public class MyDataStruct implements Struct<MyData> {
+  @Override
+  public Class<MyData> getTypeClass() {
+    return MyData.class;
+  }
+  
+  @Override
+  public int getSize() {
+    return 16;  // 8 bytes double + 8 bytes long
+  }
+  
+  @Override
+  public void pack(ByteBuffer bb, MyData value) {
+    bb.putDouble(value.value);
+    bb.putLong(value.timestamp);
+  }
+  
+  @Override
+  public MyData unpack(ByteBuffer bb) {
+    MyData data = new MyData();
+    data.value = bb.getDouble();
+    data.timestamp = bb.getLong();
+    return data;
+  }
+}
+```
+
+### Protocol Buffers
+
+```java
+import edu.wpi.first.util.protobuf.Protobuf;
+import edu.wpi.first.util.protobuf.ProtobufSerializable;
+
+// Use Protocol Buffers for serialization
+public class MyData implements ProtobufSerializable {
+  public static final MyDataProto proto = new MyDataProto();
+  
+  // Implementation using generated protobuf classes
+}
+```
+
+## System Utilities
+
+### File System
+
+```cpp
+#include <wpi/fs.h>
+
+// Path operations
+fs::path deployDir = "/home/lvuser/deploy";
+fs::path configFile = deployDir / "config.json";
+
+// Check file existence
+if (fs::exists(configFile)) {
+  // Read file
+}
+
+// Create directories
+fs::create_directories("/home/lvuser/logs");
+
+// Iterate directory
+for (const auto& entry : fs::directory_iterator(deployDir)) {
+  fmt::print("File: {}\n", entry.path().string());
+}
+```
+
+### Memory-Mapped Files
+
+```cpp
+#include <wpi/MappedFileRegion.h>
+
+// Memory-map a file
+std::error_code ec;
+auto mapped = wpi::MappedFileRegion::Open(
+    "/path/to/file",
+    wpi::MappedFileRegion::readonly,
+    ec);
+
+if (!ec) {
+  const char* data = mapped->const_data();
+  size_t size = mapped->size();
+  // Use mapped data
+}
+```
+
+### JSON Support
+
+```cpp
+#include <wpi/json.h>
+
+// Parse JSON
+wpi::json config = wpi::json::parse(jsonString);
+
+// Access values
+std::string name = config["name"];
+int value = config["value"];
+
+// Create JSON
+wpi::json output;
+output["status"] = "ok";
+output["count"] = 42;
+output["items"] = {"a", "b", "c"};
+
+// Serialize
+std::string jsonStr = output.dump();
+```
+
+### MessagePack
+
+```cpp
+#include <wpi/MessagePack.h>
+
+// Encode MessagePack
+wpi::msgpack::Document doc;
+doc.root = wpi::msgpack::MakeMap(
+    {std::make_pair("name", wpi::msgpack::MakeString("robot")),
+     std::make_pair("speed", wpi::msgpack::MakeDouble(2.5))});
+
+std::vector<uint8_t> packed = doc.pack();
+
+// Decode MessagePack
+wpi::msgpack::Document decoded = wpi::msgpack::Document::parse(packed);
+```
+
+## Threading Utilities
+
+### SafeThread
+
+RAII thread wrapper with safe shutdown.
+
+```cpp
+#include <wpi/SafeThread.h>
+
+class MyThread : public wpi::SafeThread {
+ public:
+  void Main() override {
+    while (!m_active) {
+      // Thread work
+    }
+  }
+};
+
+MyThread thread;
+thread.Start();
+// Automatically joins on destruction
+```
+
+### Synchronization
+
+```cpp
+#include <wpi/mutex.h>
+#include <wpi/condition_variable.h>
+
+wpi::mutex mtx;
+wpi::condition_variable cv;
+
+// Use like std::mutex and std::condition_variable
+{
+  std::scoped_lock lock(mtx);
+  // Critical section
+}
+```
+
+## Data Structures
+
+### Circular Buffer
+
+```cpp
+#include <wpi/circular_buffer.h>
+
+wpi::circular_buffer<double> buffer(100);  // capacity 100
+
+buffer.push_back(1.5);
+buffer.push_back(2.5);
+
+double front = buffer.front();
+double back = buffer.back();
+```
+
+### Interpolating Map
+
+```cpp
+#include <wpi/interpolating_map.h>
+
+wpi::interpolating_map<double, double> map;
+
+// Add interpolation points
+map[0.0] = 0.0;
+map[1.0] = 2.0;
+map[2.0] = 3.0;
+
+// Interpolate
+double value = map[0.5];  // Returns 1.0
+```
+
+### SmallVector
+
+```cpp
+#include <wpi/SmallVector.h>
+
+// Vector with small buffer optimization
+wpi::SmallVector<int, 8> vec;  // No heap allocation until > 8 elements
+vec.push_back(1);
+vec.push_back(2);
+```
+
+### StringMap
+
+```cpp
+#include <wpi/StringMap.h>
+
+// Efficient string-keyed map
+wpi::StringMap<int> map;
+map["key1"] = 42;
+map["key2"] = 100;
+
+if (auto it = map.find("key1"); it != map.end()) {
+  int value = it->second;
+}
+```
+
+## Other Utilities
+
+### Base64 Encoding
+
+```cpp
+#include <wpi/Base64.h>
+
+// Encode
+std::string encoded = wpi::Base64Encode(data);
+
+// Decode
+std::string decoded = wpi::Base64Decode(encoded);
+```
+
+### Stack Trace
+
+```cpp
+#include <wpi/StackTrace.h>
+
+// Get stack trace
+std::string trace = wpi::GetStackTrace(1);  // skip 1 frame
+fmt::print("Stack trace:\n{}", trace);
+```
+
+### Symbol Demangling
+
+```cpp
+#include <wpi/Demangle.h>
+
+// Demangle C++ symbol
+std::string demangled = wpi::Demangle(typeid(MyClass).name());
+```
+
+### Format Library
+
+WPIUtil includes the {fmt} library.
+
+```cpp
+#include <wpi/fmt/format.h>
+#include <wpi/fmt/chrono.h>
+
+// Format strings
+std::string s = fmt::format("Value: {:.2f}", 3.14159);
+
+// Print to console
+fmt::print("Robot enabled: {}\n", enabled);
+
+// Format to buffer
+fmt::memory_buffer buf;
+fmt::format_to(std::back_inserter(buf), "{} {}", "Hello", "World");
+```
+
+## Network Utilities
+
+### Hostname Resolution
+
+```cpp
+#include <wpi/hostname.h>
+
+// Get hostname
+std::string hostname = wpi::GetHostname();
+```
+
+### Raw Sockets
+
+```cpp
+#include <wpi/raw_socket_istream.h>
+#include <wpi/raw_socket_ostream.h>
+
+// Socket input/output streams
+wpi::raw_socket_istream input(socket);
+wpi::raw_socket_ostream output(socket);
+```
+
+## Source Code
+
+View the full source code on GitHub:
+- [WPIUtil Java](https://github.com/wpilibsuite/allwpilib/tree/main/wpiutil/src/main/java/edu/wpi/first/util)
+- [WPIUtil C++](https://github.com/wpilibsuite/allwpilib/tree/main/wpiutil/src/main/native/include/wpi)
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card title="NetworkTables" icon="network-wired" href="/api/ntcore/overview">
+    Network communication protocol
+  </Card>
+  <Card title="WPIMath" icon="square-root-variable" href="/api/wpimath/overview">
+    Mathematics and control libraries
+  </Card>
+  <Card title="WPILibJ" icon="java" href="/api/wpilibj/overview">
+    Java robot API
+  </Card>
+  <Card title="WPILibC" icon="c" href="/api/wpilibc/overview">
+    C++ robot API
+  </Card>
+</CardGroup>

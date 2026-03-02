@@ -1,0 +1,614 @@
+---
+title: Sensor Usage Guide
+description: Read data from encoders, gyros, and accelerometers
+---
+
+## Overview
+
+WPILib provides classes for reading various sensors commonly used in FRC robots. This guide covers encoders, gyroscopes, and accelerometers.
+
+## Encoders
+
+Source: `wpilibj/src/main/java/edu/wpi/first/wpilibj/Encoder.java:18`
+
+Quadrature encoders count shaft rotation and sense direction using two channels (A and B) that are out of phase.
+
+### Basic Encoder Usage
+
+<Tabs>
+  <Tab title="Java">
+    ```java
+    import edu.wpi.first.wpilibj.Encoder;
+
+    public class DriveSubsystem {
+      private Encoder m_leftEncoder;
+      private Encoder m_rightEncoder;
+
+      public DriveSubsystem() {
+        // Encoder on DIO channels 0 (A) and 1 (B)
+        m_leftEncoder = new Encoder(0, 1);
+        
+        // With reverse direction and 4X encoding
+        m_rightEncoder = new Encoder(2, 3, true, Encoder.EncodingType.k4X);
+      }
+
+      public void periodic() {
+        // Get raw count
+        int count = m_leftEncoder.get();
+        
+        // Get distance (if configured)
+        double distance = m_leftEncoder.getDistance();
+        
+        // Get rate (velocity)
+        double rate = m_leftEncoder.getRate();
+      }
+    }
+    ```
+  </Tab>
+
+  <Tab title="C++">
+    ```cpp
+    #include <frc/Encoder.h>
+
+    class DriveSubsystem {
+     public:
+      DriveSubsystem()
+        // Encoder on DIO channels 0 (A) and 1 (B)
+        : m_leftEncoder(0, 1),
+          // With reverse direction and 4X encoding
+          m_rightEncoder(2, 3, true, frc::Encoder::k4X)
+      {}
+
+      void Periodic() {
+        // Get raw count
+        int count = m_leftEncoder.Get();
+        
+        // Get distance (if configured)
+        double distance = m_leftEncoder.GetDistance();
+        
+        // Get rate (velocity)
+        double rate = m_leftEncoder.GetRate();
+      }
+
+     private:
+      frc::Encoder m_leftEncoder;
+      frc::Encoder m_rightEncoder;
+    };
+    ```
+  </Tab>
+</Tabs>
+
+### Encoding Types
+
+Source: `wpilibj/src/main/java/edu/wpi/first/wpilibj/Encoder.java:125`
+
+- **k1X**: Counts only rising edges on channel A (lowest resolution)
+- **k2X**: Counts both rising and falling edges on channel A
+- **k4X**: Counts all edges on both channels (highest resolution, default)
+
+### Distance Per Pulse
+
+Source: `wpilibj/src/main/java/edu/wpi/first/wpilibj/Encoder.java:453`
+
+Convert encoder counts to meaningful units:
+
+<Tabs>
+  <Tab title="Java">
+    ```java
+    Encoder encoder = new Encoder(0, 1);
+    
+    // 360 pulses per revolution, 6 inch wheel, 4X encoding
+    double wheelDiameter = 6.0; // inches
+    int pulsesPerRev = 360;
+    double distancePerPulse = (Math.PI * wheelDiameter) / pulsesPerRev;
+    encoder.setDistancePerPulse(distancePerPulse);
+    
+    // Now getDistance() returns inches traveled
+    double inches = encoder.getDistance();
+    
+    // getRate() returns inches per second
+    double inchesPerSecond = encoder.getRate();
+    ```
+  </Tab>
+
+  <Tab title="C++">
+    ```cpp
+    frc::Encoder encoder{0, 1};
+    
+    // 360 pulses per revolution, 6 inch wheel, 4X encoding
+    double wheelDiameter = 6.0; // inches
+    int pulsesPerRev = 360;
+    double distancePerPulse = (M_PI * wheelDiameter) / pulsesPerRev;
+    encoder.SetDistancePerPulse(distancePerPulse);
+    
+    // Now GetDistance() returns inches traveled
+    double inches = encoder.GetDistance();
+    
+    // GetRate() returns inches per second
+    double inchesPerSecond = encoder.GetRate();
+    ```
+  </Tab>
+</Tabs>
+
+### Resetting Encoders
+
+Source: `wpilibj/src/main/java/edu/wpi/first/wpilibj/Encoder.java:355`
+
+<Tabs>
+  <Tab title="Java">
+    ```java
+    // Reset count to zero
+    encoder.reset();
+    
+    // Check if encoder is stopped (no movement)
+    boolean stopped = encoder.getStopped();
+    
+    // Get direction of last movement
+    boolean direction = encoder.getDirection();
+    ```
+  </Tab>
+
+  <Tab title="C++">
+    ```cpp
+    // Reset count to zero
+    encoder.Reset();
+    
+    // Check if encoder is stopped (no movement)
+    bool stopped = encoder.GetStopped();
+    
+    // Get direction of last movement
+    bool direction = encoder.GetDirection();
+    ```
+  </Tab>
+</Tabs>
+
+### Advanced Configuration
+
+Source: `wpilibj/src/main/java/edu/wpi/first/wpilibj/Encoder.java:483`
+
+<Tabs>
+  <Tab title="Java">
+    ```java
+    Encoder encoder = new Encoder(0, 1);
+    
+    // Reverse counting direction
+    encoder.setReverseDirection(true);
+    
+    // Average multiple samples for smoother rate calculation
+    encoder.setSamplesToAverage(7);
+    
+    // Set minimum rate before considering stopped
+    encoder.setMinRate(0.01); // 0.01 distance units per second
+    ```
+  </Tab>
+
+  <Tab title="C++">
+    ```cpp
+    frc::Encoder encoder{0, 1};
+    
+    // Reverse counting direction
+    encoder.SetReverseDirection(true);
+    
+    // Average multiple samples for smoother rate calculation
+    encoder.SetSamplesToAverage(7);
+    
+    // Set minimum rate before considering stopped
+    encoder.SetMinRate(0.01); // 0.01 distance units per second
+    ```
+  </Tab>
+</Tabs>
+
+## Gyroscopes
+
+Source: `wpilibj/src/main/java/edu/wpi/first/wpilibj/AnalogGyro.java:17`
+
+Gyroscopes measure rotational rate and can integrate to provide heading.
+
+### Analog Gyro
+
+<Tabs>
+  <Tab title="Java">
+    ```java
+    import edu.wpi.first.wpilibj.AnalogGyro;
+    import edu.wpi.first.math.geometry.Rotation2d;
+
+    public class DriveSubsystem {
+      private AnalogGyro m_gyro;
+
+      public DriveSubsystem() {
+        // Gyro on analog input 0
+        m_gyro = new AnalogGyro(0);
+        
+        // Calibrate (robot must be stationary)
+        m_gyro.calibrate();
+      }
+
+      public void periodic() {
+        // Get angle in degrees (continuous, can exceed 360)
+        double degrees = m_gyro.getAngle();
+        
+        // Get rotation rate in degrees/second
+        double rate = m_gyro.getRate();
+        
+        // Get as Rotation2d for use with kinematics
+        Rotation2d rotation = m_gyro.getRotation2d();
+      }
+
+      public void resetHeading() {
+        m_gyro.reset();
+      }
+    }
+    ```
+  </Tab>
+
+  <Tab title="C++">
+    ```cpp
+    #include <frc/AnalogGyro.h>
+    #include <frc/geometry/Rotation2d.h>
+
+    class DriveSubsystem {
+     public:
+      DriveSubsystem() : m_gyro(0) {
+        // Calibrate (robot must be stationary)
+        m_gyro.Calibrate();
+      }
+
+      void Periodic() {
+        // Get angle in degrees (continuous, can exceed 360)
+        double degrees = m_gyro.GetAngle();
+        
+        // Get rotation rate in degrees/second
+        double rate = m_gyro.GetRate();
+        
+        // Get as Rotation2d for use with kinematics
+        frc::Rotation2d rotation = m_gyro.GetRotation2d();
+      }
+
+      void ResetHeading() {
+        m_gyro.Reset();
+      }
+
+     private:
+      frc::AnalogGyro m_gyro;
+    };
+    ```
+  </Tab>
+</Tabs>
+
+### Gyro Calibration
+
+Source: `wpilibj/src/main/java/edu/wpi/first/wpilibj/AnalogGyro.java:53`
+
+<Tabs>
+  <Tab title="Java">
+    ```java
+    AnalogGyro gyro = new AnalogGyro(0);
+    
+    // Automatic calibration (takes ~5 seconds)
+    gyro.calibrate();
+    
+    // Manual calibration with known values
+    int center = 2500;     // Center voltage ADC value
+    double offset = 0.0;   // Offset
+    gyro = new AnalogGyro(0, center, offset);
+    
+    // Set sensitivity (from gyro datasheet)
+    gyro.setSensitivity(0.007); // Volts per degree per second
+    
+    // Set deadband (reduce drift at rest)
+    gyro.setDeadband(0.01); // 0.01 volts
+    ```
+  </Tab>
+
+  <Tab title="C++">
+    ```cpp
+    frc::AnalogGyro gyro{0};
+    
+    // Automatic calibration (takes ~5 seconds)
+    gyro.Calibrate();
+    
+    // Manual calibration with known values
+    int center = 2500;     // Center voltage ADC value
+    double offset = 0.0;   // Offset
+    frc::AnalogGyro gyro2{0, center, offset};
+    
+    // Set sensitivity (from gyro datasheet)
+    gyro.SetSensitivity(0.007); // Volts per degree per second
+    
+    // Set deadband (reduce drift at rest)
+    gyro.SetDeadband(0.01); // 0.01 volts
+    ```
+  </Tab>
+</Tabs>
+
+### Digital Gyros
+
+<Tabs>
+  <Tab title="Java">
+    ```java
+    import edu.wpi.first.wpilibj.ADXRS450_Gyro;
+    import edu.wpi.first.wpilibj.ADIS16470_IMU;
+
+    // SPI gyroscope
+    ADXRS450_Gyro gyro = new ADXRS450_Gyro();
+    gyro.calibrate();
+    
+    // IMU with gyro and accelerometer
+    ADIS16470_IMU imu = new ADIS16470_IMU();
+    double angle = imu.getAngle();
+    ```
+  </Tab>
+
+  <Tab title="C++">
+    ```cpp
+    #include <frc/ADXRS450_Gyro.h>
+    #include <frc/ADIS16470_IMU.h>
+
+    // SPI gyroscope
+    frc::ADXRS450_Gyro gyro;
+    gyro.Calibrate();
+    
+    // IMU with gyro and accelerometer
+    frc::ADIS16470_IMU imu;
+    double angle = imu.GetAngle();
+    ```
+  </Tab>
+</Tabs>
+
+## Accelerometers
+
+Source: `wpilibj/src/main/java/edu/wpi/first/wpilibj/BuiltInAccelerometer.java:14`
+
+### Built-in Accelerometer
+
+The roboRIO has a built-in 3-axis accelerometer:
+
+<Tabs>
+  <Tab title="Java">
+    ```java
+    import edu.wpi.first.wpilibj.BuiltInAccelerometer;
+    import edu.wpi.first.wpilibj.BuiltInAccelerometer.Range;
+
+    public class RobotContainer {
+      private BuiltInAccelerometer m_accelerometer;
+
+      public RobotContainer() {
+        // Default: +/- 8g range
+        m_accelerometer = new BuiltInAccelerometer();
+        
+        // Or specify range: k2G, k4G, k8G
+        m_accelerometer = new BuiltInAccelerometer(Range.k4G);
+      }
+
+      public void periodic() {
+        // Get acceleration in g-forces
+        double xAccel = m_accelerometer.getX();
+        double yAccel = m_accelerometer.getY();
+        double zAccel = m_accelerometer.getZ();
+        
+        // Detect collisions
+        double magnitude = Math.sqrt(
+          xAccel * xAccel + yAccel * yAccel + zAccel * zAccel
+        );
+        if (magnitude > 2.5) {
+          System.out.println("Collision detected!");
+        }
+      }
+    }
+    ```
+  </Tab>
+
+  <Tab title="C++">
+    ```cpp
+    #include <frc/BuiltInAccelerometer.h>
+    #include <cmath>
+
+    class RobotContainer {
+     public:
+      RobotContainer()
+        // Default: +/- 8g range
+        : m_accelerometer()
+      {
+        // Or specify range: k2G, k4G, k8G
+        // m_accelerometer.SetRange(frc::BuiltInAccelerometer::kRange_4G);
+      }
+
+      void Periodic() {
+        // Get acceleration in g-forces
+        double xAccel = m_accelerometer.GetX();
+        double yAccel = m_accelerometer.GetY();
+        double zAccel = m_accelerometer.GetZ();
+        
+        // Detect collisions
+        double magnitude = std::sqrt(
+          xAccel * xAccel + yAccel * yAccel + zAccel * zAccel
+        );
+        if (magnitude > 2.5) {
+          std::cout << "Collision detected!" << std::endl;
+        }
+      }
+
+     private:
+      frc::BuiltInAccelerometer m_accelerometer;
+    };
+    ```
+  </Tab>
+</Tabs>
+
+### External Accelerometers
+
+<Tabs>
+  <Tab title="Java">
+    ```java
+    import edu.wpi.first.wpilibj.ADXL345_I2C;
+    import edu.wpi.first.wpilibj.ADXL362;
+    import edu.wpi.first.wpilibj.I2C;
+    import edu.wpi.first.wpilibj.SPI;
+
+    // I2C accelerometer
+    ADXL345_I2C accel = new ADXL345_I2C(I2C.Port.kOnboard, ADXL345_I2C.Range.k2G);
+    double x = accel.getX();
+    
+    // SPI accelerometer
+    ADXL362 accel2 = new ADXL362(SPI.Port.kMXP, ADXL362.Range.k2G);
+    double y = accel2.getY();
+    ```
+  </Tab>
+
+  <Tab title="C++">
+    ```cpp
+    #include <frc/ADXL345_I2C.h>
+    #include <frc/ADXL362.h>
+
+    // I2C accelerometer
+    frc::ADXL345_I2C accel{frc::I2C::kOnboard, frc::ADXL345_I2C::kRange_2G};
+    double x = accel.GetX();
+    
+    // SPI accelerometer
+    frc::ADXL362 accel2{frc::SPI::kMXP, frc::ADXL362::kRange_2G};
+    double y = accel2.GetY();
+    ```
+  </Tab>
+</Tabs>
+
+## Complete Odometry Example
+
+<Tabs>
+  <Tab title="Java">
+    ```java
+    import edu.wpi.first.wpilibj.Encoder;
+    import edu.wpi.first.wpilibj.ADXRS450_Gyro;
+    import edu.wpi.first.math.kinematics.DifferentialDriveOdometry;
+    import edu.wpi.first.math.geometry.Pose2d;
+
+    public class DriveSubsystem {
+      private Encoder m_leftEncoder;
+      private Encoder m_rightEncoder;
+      private ADXRS450_Gyro m_gyro;
+      private DifferentialDriveOdometry m_odometry;
+
+      private static final double WHEEL_DIAMETER = 6.0; // inches
+      private static final int PULSES_PER_REV = 360;
+
+      public DriveSubsystem() {
+        // Setup encoders
+        m_leftEncoder = new Encoder(0, 1);
+        m_rightEncoder = new Encoder(2, 3);
+        double distancePerPulse = (Math.PI * WHEEL_DIAMETER) / PULSES_PER_REV;
+        m_leftEncoder.setDistancePerPulse(distancePerPulse);
+        m_rightEncoder.setDistancePerPulse(distancePerPulse);
+
+        // Setup gyro
+        m_gyro = new ADXRS450_Gyro();
+        m_gyro.calibrate();
+
+        // Setup odometry
+        m_odometry = new DifferentialDriveOdometry(
+          m_gyro.getRotation2d(),
+          m_leftEncoder.getDistance(),
+          m_rightEncoder.getDistance()
+        );
+      }
+
+      public void periodic() {
+        // Update robot position
+        m_odometry.update(
+          m_gyro.getRotation2d(),
+          m_leftEncoder.getDistance(),
+          m_rightEncoder.getDistance()
+        );
+      }
+
+      public Pose2d getPose() {
+        return m_odometry.getPoseMeters();
+      }
+
+      public void resetOdometry(Pose2d pose) {
+        m_leftEncoder.reset();
+        m_rightEncoder.reset();
+        m_gyro.reset();
+        m_odometry.resetPosition(
+          m_gyro.getRotation2d(),
+          m_leftEncoder.getDistance(),
+          m_rightEncoder.getDistance(),
+          pose
+        );
+      }
+    }
+    ```
+  </Tab>
+
+  <Tab title="C++">
+    ```cpp
+    #include <frc/Encoder.h>
+    #include <frc/ADXRS450_Gyro.h>
+    #include <frc/kinematics/DifferentialDriveOdometry.h>
+    #include <numbers>
+
+    class DriveSubsystem {
+     public:
+      DriveSubsystem()
+        : m_leftEncoder(0, 1),
+          m_rightEncoder(2, 3),
+          m_odometry(m_gyro.GetRotation2d(), 0_m, 0_m)
+      {
+        // Setup encoders
+        constexpr double wheelDiameter = 6.0; // inches
+        constexpr int pulsesPerRev = 360;
+        double distancePerPulse = (std::numbers::pi * wheelDiameter) / pulsesPerRev;
+        m_leftEncoder.SetDistancePerPulse(distancePerPulse);
+        m_rightEncoder.SetDistancePerPulse(distancePerPulse);
+
+        // Setup gyro
+        m_gyro.Calibrate();
+      }
+
+      void Periodic() {
+        // Update robot position
+        m_odometry.Update(
+          m_gyro.GetRotation2d(),
+          units::meter_t{m_leftEncoder.GetDistance()},
+          units::meter_t{m_rightEncoder.GetDistance()}
+        );
+      }
+
+      frc::Pose2d GetPose() {
+        return m_odometry.GetPose();
+      }
+
+      void ResetOdometry(frc::Pose2d pose) {
+        m_leftEncoder.Reset();
+        m_rightEncoder.Reset();
+        m_gyro.Reset();
+        m_odometry.ResetPosition(
+          m_gyro.GetRotation2d(),
+          units::meter_t{m_leftEncoder.GetDistance()},
+          units::meter_t{m_rightEncoder.GetDistance()},
+          pose
+        );
+      }
+
+     private:
+      frc::Encoder m_leftEncoder;
+      frc::Encoder m_rightEncoder;
+      frc::ADXRS450_Gyro m_gyro;
+      frc::DifferentialDriveOdometry m_odometry;
+    };
+    ```
+  </Tab>
+</Tabs>
+
+## Best Practices
+
+- **Calibrate gyros at startup** - Robot must be stationary during calibration
+- **Reset sensors at known positions** - Reset encoders when robot is at a known position
+- **Set distance per pulse** - Convert encoder counts to meaningful units
+- **Use averaging for smoother rates** - Call `setSamplesToAverage()` for encoders
+- **Monitor gyro drift** - Gyros accumulate error over time; reset periodically
+- **Check sensor connections** - Verify sensor values are reasonable
+
+## Next Steps
+
+- [Motor Control](/guides/motor-control) - Control motors with feedback
+- [Pneumatics](/guides/pneumatics) - Control pneumatic systems
+- [Vision](/guides/vision) - Process camera data

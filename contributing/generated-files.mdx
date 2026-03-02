@@ -1,0 +1,249 @@
+---
+title: Generated Files Documentation
+description: Understanding and maintaining WPILib's code generation system
+---
+
+WPILib extensively uses [metaprogramming](https://en.wikipedia.org/wiki/Metaprogramming#Code_generation) to generate code that would otherwise be tedious and error-prone to maintain. This guide explains how to maintain these generated files and create new ones.
+
+## Overview
+
+WPILib uses [Jinja](https://jinja.palletsprojects.com), a templating engine with a Python API, alongside JSON files that contain data to generate code. This approach allows us to:
+
+- Maintain consistency across similar files
+- Reduce repetitive code
+- Minimize errors in boilerplate code
+- Make large-scale changes more efficiently
+
+## File Hierarchy
+
+The code generation system follows a consistent structure across all subprojects.
+
+### Python Scripts
+
+The Python script used to generate a subproject's files is always located in the subproject's directory and named:
+
+```
+generate_<thing>.py
+```
+
+Where `<thing>` is the name of what you're generating.
+
+**Example:** `wpilibj/generate_pwm_motor_controllers.py`
+
+### Templates
+
+Templates are located under:
+
+```
+subproject/src/generate/main
+```
+
+### Generated Files
+
+Generated files are located under:
+
+
+```
+subproject/src/generated/main
+```
+
+### C++ File Structure
+
+For C++, the hierarchy should be symmetrical. If a generated header is located at:
+
+```
+subproject/src/generated/main/native/include/frc/header.h
+```
+
+The template to generate it should be at:
+
+```
+subproject/src/generate/main/native/include/frc/template.h.jinja
+```
+
+<Note>
+  Treat `subproject/src/generate/main` just like `subproject/src/main` - the file hierarchy must make sense if the files weren't generated.
+</Note>
+
+### Java File Structure
+
+For Java:
+
+- **Templates**: Located under `subproject/src/generate/main/java`
+- **Generated files**: Hierarchy reflects the declared package of the output Java files
+
+**Example:**
+
+A Jinja template at:
+```
+subproject/src/main/java/template.java.jinja
+```
+
+With the package `edu.wpi.first.wpilibj` would generate files at:
+```
+subproject/src/generated/main/java/edu/wpi/first/wpilibj
+```
+
+### JSON Data Files
+
+JSON files live under `subproject/src/generate` since they apply to both languages.
+
+**Special case:** JSON files used by multiple subprojects are located in wpilibj (since Java is the most used language).
+
+## Using Code Generation
+
+If you've identified files that are extremely similar, one file with lots of repetitive code, or both, you can create Jinja templates, a JSON file, and a Python script to automatically generate the code.
+
+### Preparing Files for Codegen
+
+<Steps>
+  <Step title="Identify similar code">
+    Find files or code sections that are similar and identify:
+    - Parts that are the same (go into templates)
+    - Parts that differ (go into JSON data files)
+  </Step>
+
+  <Step title="Extract data">
+    Code needs to go into your Jinja template, while data that will be used to fill in the template goes into a JSON file.
+    
+    **Example:** Game controllers have similar methods to read button values. The methods are code (template), while the button names and values are data (JSON).
+  </Step>
+
+  <Step title="Create templates">
+    Create Jinja templates with code and Jinja expressions where data should be inserted.
+  </Step>
+
+  <Step title="Create JSON data">
+    Create JSON files containing the data that varies between generated files.
+  </Step>
+</Steps>
+
+### Writing a Python Script
+
+<Steps>
+  <Step title="Copy an existing script">
+    To maintain consistency, copy an existing `generate_*.py` script.
+    
+    [generate_pwm_motor_controllers.py](https://github.com/wpilibsuite/allwpilib/blob/main/wpilibj/generate_pwm_motor_controllers.py) is a good starting point since it's relatively basic.
+  </Step>
+
+  <Step title="Modify the script">
+    - Reference your templates and JSON file
+    - Modify paths so files end up in the right place
+    - Rename functions to match what you're generating
+    - Give files the correct names (from template name or JSON data)
+  </Step>
+
+  <Step title="Mark as executable">
+    Ensure the Python script is marked as executable, as this is necessary for CI workflows:
+    
+    ```bash
+    chmod +x generate_<thing>.py
+    ```
+  </Step>
+</Steps>
+
+### Example: Topic Generation
+
+For a complete example, see [ntcore/generate_topics.py](https://github.com/wpilibsuite/allwpilib/blob/main/ntcore/generate_topics.py), which demonstrates:
+
+- Loading JSON data
+- Processing templates
+- Generating multiple files
+- Proper file naming from template names
+
+## Generating Files
+
+### Running Generation Scripts
+
+Once your Python script is complete, run it to generate the files:
+
+```bash
+python generate_<thing>.py
+```
+
+### Committing Generated Files
+
+<Warning>
+  Always commit the generated files to Git along with your templates and scripts.
+</Warning>
+
+After generating files:
+
+1. Review the generated files
+2. Commit them to Git
+3. If Git shows changes but the diff is empty, only line endings changed - you can discard these changes if unexpected
+
+### CI Integration
+
+To add your script to CI workflows:
+
+<Steps>
+  <Step title="Edit the CI workflow">
+    Edit `.github/workflows/pregen_all.py`
+  </Step>
+
+  <Step title="Add your script">
+    Add your script alongside the existing scripts in the workflow file.
+  </Step>
+</Steps>
+
+### Regenerating via PR Comments
+
+If a PR modifies templates, files can be regenerated through CI by commenting `/pregen` on the PR. A new commit will be pushed with the regenerated files.
+
+## Best Practices
+
+### When to Use Code Generation
+
+Use code generation when:
+
+- You have multiple files with similar structure
+- A file has lots of repetitive code
+- Changes need to be applied consistently across many files
+- Manual maintenance would be error-prone
+
+### Template Design
+
+- Keep templates readable
+- Use meaningful variable names in Jinja expressions
+- Comment complex template logic
+- Test templates with various data inputs
+
+### JSON Data Structure
+
+- Use clear, descriptive keys
+- Organize data logically
+- Document the expected structure
+- Validate JSON syntax before committing
+
+### Script Maintenance
+
+- Follow existing script patterns
+- Add error handling for missing data
+- Validate paths before writing files
+- Document any special requirements
+
+## Troubleshooting
+
+### Line Ending Changes
+
+If Git shows changes but diffs are empty, only line endings have changed:
+
+- If you expected code changes, check your templates and data
+- If you didn't expect changes, discard them
+
+### Generation Errors
+
+Common issues:
+
+- **Missing data in JSON**: Add required fields
+- **Template syntax errors**: Check Jinja syntax
+- **Path errors**: Verify directory structure matches expectations
+- **Import errors**: Ensure Jinja is installed (`pip install jinja2`)
+
+## Next Steps
+
+- [Review the code style guide](/contributing/style-guide)
+- [Learn about the build process](/contributing/building)
+- [Submit your changes](/contributing/overview#contribution-process)

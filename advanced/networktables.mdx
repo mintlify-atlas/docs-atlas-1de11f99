@@ -1,0 +1,408 @@
+---
+title: NetworkTables Communication
+description: Real-time data sharing between robot code, dashboard, and vision coprocessors
+---
+
+NetworkTables is WPILib's publish-subscribe communication system for sharing data between the robot, driver station, dashboards, and coprocessors in real-time.
+
+## What is NetworkTables?
+
+NetworkTables provides:
+- **Automatic Synchronization**: Changes propagate to all connected clients
+- **Persistent Data**: Values survive program restarts
+- **Topic-Based**: Organized by hierarchical names like `/SmartDashboard/Speed`
+- **Type-Safe**: Supports primitives, arrays, and structured data
+- **Low Latency**: Optimized for real-time robotics
+
+## Getting Started
+
+### Getting the Default Instance
+
+```cpp
+#include <networktables/NetworkTableInstance.h>
+
+auto inst = nt::NetworkTableInstance::GetDefault();
+```
+
+Location: `ntcore/src/main/native/include/networktables/NetworkTableInstance.h:131`
+
+### Getting a Table
+
+Tables organize related entries:
+
+```cpp
+#include <networktables/NetworkTable.h>
+
+auto table = inst.GetTable("SmartDashboard");
+auto customTable = inst.GetTable("Vision");
+```
+
+Location: `ntcore/src/main/native/include/networktables/NetworkTableInstance.h:435`
+
+## Publishing and Subscribing
+
+### Using Topics (NT4 - Recommended)
+
+Topics provide type-safe, efficient communication:
+
+```cpp
+// Publish a double value
+auto speedTopic = inst.GetDoubleTopic("/robot/speed");
+auto speedPub = speedTopic.Publish();
+
+// In periodic code
+void TeleopPeriodic() {
+    speedPub.Set(encoder.GetRate());
+}
+
+// Subscribe to a value
+auto targetTopic = inst.GetDoubleTopic("/vision/target_x");
+auto targetSub = targetTopic.Subscribe(0.0);  // Default value
+
+void AutonomousPeriodic() {
+    double targetX = targetSub.Get();
+    // Use target position...
+}
+```
+
+Location: `ntcore/src/main/native/include/networktables/NetworkTableInstance.h:199`
+
+### Supported Topic Types
+
+```cpp
+// Primitives
+auto boolTopic = inst.GetBooleanTopic("/enabled");
+auto intTopic = inst.GetIntegerTopic("/count");
+auto floatTopic = inst.GetFloatTopic("/temperature");
+auto doubleTopic = inst.GetDoubleTopic("/velocity");
+auto stringTopic = inst.GetStringTopic("/status");
+
+// Arrays
+auto doubleArrayTopic = inst.GetDoubleArrayTopic("/positions");
+auto stringArrayTopic = inst.GetStringArrayTopic("/labels");
+auto boolArrayTopic = inst.GetBooleanArrayTopic("/switches");
+```
+
+Location: `ntcore/src/main/native/include/networktables/NetworkTableInstance.h:177`
+
+### Structured Data
+
+Publish complex types using structs:
+
+```cpp
+#include <frc/geometry/Pose2d.h>
+
+// Publish a Pose2d
+auto poseTopic = inst.GetStructTopic<frc::Pose2d>("robot_pose");
+auto posePub = poseTopic.Publish();
+
+posePub.Set(frc::Pose2d{1_m, 2_m, 45_deg});
+
+// Subscribe to a Pose2d
+auto poseEstimateTopic = inst.GetStructTopic<frc::Pose2d>("vision_pose");
+auto poseSub = poseEstimateTopic.Subscribe(frc::Pose2d{});
+
+auto estimatedPose = poseSub.Get();
+```
+
+Location: `ntcore/src/main/native/include/networktables/NetworkTableInstance.h:279`
+
+## Using NetworkTable Entries
+
+### Simple Put/Get API
+
+For basic use cases:
+
+```cpp
+auto table = inst.GetTable("SmartDashboard");
+
+// Put values
+table->PutNumber("Speed", encoder.GetRate());
+table->PutBoolean("AtTarget", controller.AtSetpoint());
+table->PutString("Status", "Running");
+
+// Get values
+double maxSpeed = table->GetNumber("MaxSpeed", 3.0);  // Default 3.0
+bool autoEnabled = table->GetBoolean("AutoEnabled", false);
+std::string mode = table->GetString("Mode", "Teleop");
+```
+
+Location: `ntcore/src/main/native/include/networktables/NetworkTable.h:361`
+
+### Array Values
+
+```cpp
+// Put arrays
+std::vector<double> positions = {1.0, 2.5, 3.7};
+table->PutNumberArray("JointPositions", positions);
+
+std::vector<std::string> names = {"Front", "Back", "Left", "Right"};
+table->PutStringArray("SensorNames", names);
+
+// Get arrays
+auto defaults = std::vector<double>{0.0, 0.0, 0.0};
+auto readings = table->GetNumberArray("Sensors", defaults);
+```
+
+Location: `ntcore/src/main/native/include/networktables/NetworkTable.h:490`
+
+## Listeners and Callbacks
+
+React to value changes:
+
+```cpp
+// Listen to topic changes
+auto listener = inst.AddListener(
+    speedTopic,
+    nt::EventFlags::kValueAll,
+    [](const nt::Event& event) {
+        if (auto valueData = event.GetValueEventData()) {
+            fmt::print("Speed changed to: {}\n", 
+                      valueData->value.GetDouble());
+        }
+    }
+);
+
+// Listen to all topics with a prefix
+auto prefixListener = inst.AddListener(
+    {"/vision"},  // Topic prefix
+    nt::EventFlags::kValueAll,
+    [](const nt::Event& event) {
+        fmt::print("Vision data updated\n");
+    }
+);
+
+// Remove listener when done
+nt::NetworkTableInstance::RemoveListener(listener);
+```
+
+Location: `ntcore/src/main/native/include/networktables/NetworkTableInstance.h:515`
+
+## Server and Client Modes
+
+### Robot (Server Mode)
+
+The robot typically runs as a server:
+
+```cpp
+// Start server (usually called automatically by WPILib)
+inst.StartServer();
+
+// Or start with custom settings
+inst.StartServer(
+    "networktables.json",  // Persistence file
+    "",                     // Listen on all interfaces  
+    1735,                  // NT3 port
+    1736                   // NT4 port
+);
+```
+
+Location: `ntcore/src/main/native/include/networktables/NetworkTableInstance.h:617`
+
+### Coprocessor (Client Mode)
+
+Vision coprocessors connect as clients:
+
+```cpp
+// Start NT4 client
+inst.StartClient4("vision-pi");
+
+// Set server address
+inst.SetServerTeam(1234);  // Connect to team 1234's robot
+
+// Or use specific IP
+inst.SetServer("10.12.34.2");
+
+// For multiple servers (failover)
+inst.SetServer({
+    {"10.12.34.2", 1736},
+    {"roborio-1234-frc.local", 1736}
+});
+```
+
+Location: `ntcore/src/main/native/include/networktables/NetworkTableInstance.h:645`
+
+## Common Patterns
+
+### SmartDashboard Integration
+
+```cpp
+#include <frc/smartdashboard/SmartDashboard.h>
+
+// SmartDashboard uses NetworkTables internally
+frc::SmartDashboard::PutNumber("Speed", speed);
+frc::SmartDashboard::PutBoolean("Limit Switch", limitSwitch.Get());
+
+double kP = frc::SmartDashboard::GetNumber("kP", 1.0);
+```
+
+### Tunable Parameters
+
+Adjust PID gains from dashboard:
+
+```cpp
+class TunablePIDController {
+public:
+    TunablePIDController(std::string_view name) {
+        auto table = nt::NetworkTableInstance::GetDefault()
+            .GetTable("PID")
+            ->GetSubTable(name);
+        
+        table->PutNumber("kP", 1.0);
+        table->PutNumber("kI", 0.0);
+        table->PutNumber("kD", 0.0);
+        
+        kpEntry = table->GetEntry("kP");
+        kiEntry = table->GetEntry("kI");
+        kdEntry = table->GetEntry("kD");
+    }
+    
+    void UpdateGains() {
+        controller.SetP(kpEntry.GetDouble(1.0));
+        controller.SetI(kiEntry.GetDouble(0.0));
+        controller.SetD(kdEntry.GetDouble(0.0));
+    }
+    
+private:
+    frc::PIDController controller{1.0, 0.0, 0.0};
+    nt::NetworkTableEntry kpEntry;
+    nt::NetworkTableEntry kiEntry;
+    nt::NetworkTableEntry kdEntry;
+};
+```
+
+### Vision Data Exchange
+
+```cpp
+// On vision coprocessor
+auto visionTable = inst.GetTable("vision");
+
+void ProcessFrame() {
+    auto targets = detectTargets();
+    
+    if (!targets.empty()) {
+        visionTable->PutBoolean("hasTarget", true);
+        visionTable->PutNumber("targetX", targets[0].x);
+        visionTable->PutNumber("targetY", targets[0].y);
+        visionTable->PutNumber("targetArea", targets[0].area);
+    } else {
+        visionTable->PutBoolean("hasTarget", false);
+    }
+}
+
+// On robot
+void AutonomousPeriodic() {
+    auto visionTable = inst.GetTable("vision");
+    
+    if (visionTable->GetBoolean("hasTarget", false)) {
+        double targetX = visionTable->GetNumber("targetX", 0.0);
+        double targetY = visionTable->GetNumber("targetY", 0.0);
+        
+        // Aim at target
+        aimAtTarget(targetX, targetY);
+    }
+}
+```
+
+### Persistent Values
+
+Values that survive robot reboots:
+
+```cpp
+auto table = inst.GetTable("Config");
+
+// Make entry persistent
+table->SetPersistent("OffsetAngle");
+table->PutNumber("OffsetAngle", 15.0);
+
+// Value will be saved and restored on next boot
+```
+
+Location: `ntcore/src/main/native/include/networktables/NetworkTable.h:336`
+
+## Connection Management
+
+### Check Connection Status
+
+```cpp
+if (inst.IsConnected()) {
+    // Robot is connected to driver station or client
+}
+
+// Get connection info
+auto connections = inst.GetConnections();
+for (const auto& conn : connections) {
+    fmt::print("Connected to: {}\n", conn.remote_id);
+}
+```
+
+Location: `ntcore/src/main/native/include/networktables/NetworkTableInstance.h:747`
+
+### Flush Updates
+
+```cpp
+// Force immediate network update (normally automatic)
+inst.Flush();
+```
+
+Location: `ntcore/src/main/native/include/networktables/NetworkTableInstance.h:730`
+
+## Best Practices
+
+1. **Use Topics Over Entries**: NT4 topics are more efficient than legacy entries
+2. **Batch Updates**: Group related updates to minimize network traffic
+3. **Minimize Publish Rate**: Don't publish faster than necessary (20-50Hz is often sufficient)
+4. **Use Structured Types**: Prefer structs over multiple individual values
+5. **Name Hierarchically**: Use clear paths like `/subsystem/component/value`
+6. **Persist Configuration**: Use persistent entries for tunable parameters
+7. **Handle Disconnections**: Always provide default values for Get operations
+
+## Debugging
+
+### View with OutlineViewer
+
+WPILib includes OutlineViewer for browsing NetworkTables:
+- Shows all topics and values
+- Edit values in real-time
+- Monitor connection status
+
+### Logging
+
+```cpp
+// Enable NetworkTables logging
+auto logger = inst.AddLogger(
+    nt::LogLevel::kLogInfo,
+    nt::LogLevel::kLogDebug,
+    [](const nt::Event& event) {
+        if (auto logData = event.GetLogMessage()) {
+            fmt::print("NT: {}\n", logData->message);
+        }
+    }
+);
+```
+
+Location: `ntcore/src/main/native/include/networktables/NetworkTableInstance.h:837`
+
+## Performance Considerations
+
+**Topic Count**: Minimize number of topics for better performance
+
+**Update Rate**: Limit how often you publish:
+```cpp
+// Bad: Updates every cycle (50Hz)
+void RobotPeriodic() {
+    topic.Set(getValue());
+}
+
+// Good: Updates at 20Hz
+void RobotPeriodic() {
+    static int counter = 0;
+    if (++counter % 3 == 0) {  // Every 3rd cycle = 20Hz
+        topic.Set(getValue());
+    }
+}
+```
+
+**Array Size**: Keep arrays reasonably sized (< 1KB typical)
+
+**String Length**: Avoid very long strings in high-frequency updates

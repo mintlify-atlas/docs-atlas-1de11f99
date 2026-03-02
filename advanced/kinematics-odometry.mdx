@@ -1,0 +1,314 @@
+---
+title: Kinematics and Odometry
+description: Robot motion modeling and position tracking for different drivetrain types
+---
+
+Kinematics and odometry allow you to model robot motion and track position on the field. WPILib provides kinematics classes for differential, mecanum, and swerve drivetrains.
+
+## What is Kinematics?
+
+Kinematics converts between chassis motion (the robot's overall movement) and individual wheel speeds:
+
+- **Forward Kinematics**: Wheel speeds → Chassis speeds
+- **Inverse Kinematics**: Chassis speeds → Wheel speeds
+
+This enables:
+- Converting joystick inputs to wheel commands
+- Calculating robot velocity from encoders
+- Implementing field-oriented drive
+- Trajectory following
+
+## Differential Drive Kinematics
+
+For robots with left and right wheel groups (tank drive, West Coast Drive).
+
+### Creating the Kinematics Object
+
+```cpp
+#include <frc/kinematics/DifferentialDriveKinematics.h>
+
+// Track width is the distance between left and right wheels
+frc::DifferentialDriveKinematics kinematics{0.7_m};
+```
+
+Location: `wpimath/src/main/native/include/frc/kinematics/DifferentialDriveKinematics.h:29`
+
+### Inverse Kinematics
+
+Convert desired chassis motion to wheel speeds:
+
+```cpp
+#include <frc/kinematics/ChassisSpeeds.h>
+
+// Desired robot motion: 1 m/s forward, 0.5 rad/s rotation
+frc::ChassisSpeeds speeds{1.0_mps, 0_mps, 0.5_rad_per_s};
+
+// Calculate required wheel speeds
+auto wheelSpeeds = kinematics.ToWheelSpeeds(speeds);
+
+// Apply to motors
+leftMotor.Set(wheelSpeeds.left.value());
+rightMotor.Set(wheelSpeeds.right.value());
+```
+
+Location: `wpimath/src/main/native/include/frc/kinematics/DifferentialDriveKinematics.h:70`
+
+### Forward Kinematics
+
+Calculate chassis motion from wheel speeds:
+
+```cpp
+// Get wheel speeds from encoders
+frc::DifferentialDriveWheelSpeeds measuredSpeeds{
+    units::meters_per_second_t{leftEncoder.GetRate()},
+    units::meters_per_second_t{rightEncoder.GetRate()}
+};
+
+// Calculate chassis speeds
+auto chassisSpeeds = kinematics.ToChassisSpeeds(measuredSpeeds);
+
+// Access components
+auto vx = chassisSpeeds.vx;      // Forward velocity
+auto omega = chassisSpeeds.omega; // Rotation rate
+```
+
+Location: `wpimath/src/main/native/include/frc/kinematics/DifferentialDriveKinematics.h:56`
+
+## Mecanum Drive Kinematics
+
+For mecanum drivetrains with omnidirectional movement.
+
+### Creating the Kinematics Object
+
+```cpp
+#include <frc/kinematics/MecanumDriveKinematics.h>
+#include <frc/geometry/Translation2d.h>
+
+// Wheel locations relative to robot center
+frc::MecanumDriveKinematics kinematics{
+    frc::Translation2d{0.3_m, 0.3_m},    // Front left
+    frc::Translation2d{0.3_m, -0.3_m},   // Front right
+    frc::Translation2d{-0.3_m, 0.3_m},   // Rear left
+    frc::Translation2d{-0.3_m, -0.3_m}   // Rear right
+};
+```
+
+Location: `wpimath/src/main/native/include/frc/kinematics/MecanumDriveKinematics.h:43`
+
+### Inverse Kinematics
+
+```cpp
+// Desired motion: 1 m/s forward, 0.5 m/s left, 0.3 rad/s rotation
+frc::ChassisSpeeds speeds{1.0_mps, 0.5_mps, 0.3_rad_per_s};
+
+auto wheelSpeeds = kinematics.ToWheelSpeeds(speeds);
+
+// Apply to motors
+frontLeftMotor.Set(wheelSpeeds.frontLeft.value());
+frontRightMotor.Set(wheelSpeeds.frontRight.value());
+rearLeftMotor.Set(wheelSpeeds.rearLeft.value());
+rearRightMotor.Set(wheelSpeeds.rearRight.value());
+```
+
+### Custom Center of Rotation
+
+Mecanum drives can rotate around any point:
+
+```cpp
+// Rotate around front-left corner
+frc::Translation2d centerOfRotation{0.3_m, 0.3_m};
+auto wheelSpeeds = kinematics.ToWheelSpeeds(speeds, centerOfRotation);
+```
+
+Location: `wpimath/src/main/native/include/frc/kinematics/MecanumDriveKinematics.h:104`
+
+## Swerve Drive Kinematics
+
+For swerve drivetrains with independently rotating modules.
+
+### Creating the Kinematics Object
+
+```cpp
+#include <frc/kinematics/SwerveDriveKinematics.h>
+
+// Module locations relative to robot center
+frc::SwerveDriveKinematics<4> kinematics{
+    frc::Translation2d{0.3_m, 0.3_m},    // Front left
+    frc::Translation2d{0.3_m, -0.3_m},   // Front right
+    frc::Translation2d{-0.3_m, 0.3_m},   // Rear left
+    frc::Translation2d{-0.3_m, -0.3_m}   // Rear right
+};
+```
+
+Location: `wpimath/src/main/native/include/frc/kinematics/SwerveDriveKinematics.h:52`
+
+### Inverse Kinematics
+
+```cpp
+#include <frc/kinematics/SwerveModuleState.h>
+
+frc::ChassisSpeeds speeds{2.0_mps, 0_mps, 1.0_rad_per_s};
+
+auto moduleStates = kinematics.ToSwerveModuleStates(speeds);
+
+// Desaturate if any wheel speed exceeds maximum
+frc::SwerveDriveKinematics<4>::DesaturateWheelSpeeds(
+    &moduleStates, 4.5_mps  // Max module speed
+);
+
+// Apply to modules
+for (int i = 0; i < 4; i++) {
+    modules[i].SetDesiredState(moduleStates[i]);
+}
+```
+
+Location: `wpimath/src/main/native/include/frc/kinematics/SwerveDriveKinematics.h:158`
+
+### Desaturating Wheel Speeds
+
+Prevent wheel speeds from exceeding physical limits:
+
+```cpp
+// Basic desaturation
+frc::SwerveDriveKinematics<4>::DesaturateWheelSpeeds(
+    &moduleStates,
+    4.5_mps  // Attainable max speed
+);
+
+// Advanced desaturation with chassis speed limits
+frc::SwerveDriveKinematics<4>::DesaturateWheelSpeeds(
+    &moduleStates,
+    desiredSpeeds,
+    4.5_mps,     // Max module speed
+    4.0_mps,     // Max translation speed
+    2.0_rad_per_s // Max rotation speed
+);
+```
+
+Location: `wpimath/src/main/native/include/frc/kinematics/SwerveDriveKinematics.h:347`
+
+## Odometry
+
+Odometry tracks robot position on the field using encoder and gyro measurements.
+
+### Differential Drive Odometry
+
+```cpp
+#include <frc/kinematics/DifferentialDriveOdometry.h>
+#include <frc/geometry/Pose2d.h>
+
+// Initialize odometry with starting position
+frc::DifferentialDriveOdometry odometry{
+    gyro.GetRotation2d(),
+    leftEncoder.GetDistance(),
+    rightEncoder.GetDistance(),
+    frc::Pose2d{5_m, 13.5_m, 0_deg}  // Starting pose
+};
+
+// Update periodically (in robot periodic)
+void RobotPeriodic() {
+    auto pose = odometry.Update(
+        gyro.GetRotation2d(),
+        leftEncoder.GetDistance(),
+        rightEncoder.GetDistance()
+    );
+    
+    // pose now contains current field position
+    field.SetRobotPose(pose);
+}
+```
+
+Location: `wpimath/src/main/native/include/frc/kinematics/DifferentialDriveOdometry.h:29`
+
+### Mecanum Drive Odometry
+
+```cpp
+#include <frc/kinematics/MecanumDriveOdometry.h>
+
+frc::MecanumDriveOdometry odometry{
+    kinematics,
+    gyro.GetRotation2d(),
+    frc::MecanumDriveWheelPositions{
+        flEncoder.GetDistance(),
+        frEncoder.GetDistance(),
+        rlEncoder.GetDistance(),
+        rrEncoder.GetDistance()
+    },
+    frc::Pose2d{0_m, 0_m, 0_deg}
+};
+```
+
+### Swerve Drive Odometry
+
+```cpp
+#include <frc/kinematics/SwerveDriveOdometry.h>
+
+frc::SwerveDriveOdometry<4> odometry{
+    kinematics,
+    gyro.GetRotation2d(),
+    {module0.GetPosition(), module1.GetPosition(),
+     module2.GetPosition(), module3.GetPosition()},
+    frc::Pose2d{}
+};
+
+// Update each periodic cycle
+void RobotPeriodic() {
+    auto pose = odometry.Update(
+        gyro.GetRotation2d(),
+        {module0.GetPosition(), module1.GetPosition(),
+         module2.GetPosition(), module3.GetPosition()}
+    );
+}
+```
+
+### Resetting Odometry
+
+```cpp
+// Reset to new position (e.g., at start of autonomous)
+odometry.ResetPosition(
+    gyro.GetRotation2d(),
+    leftEncoder.GetDistance(),
+    rightEncoder.GetDistance(),
+    frc::Pose2d{0_m, 0_m, 0_deg}  // New pose
+);
+```
+
+## Field-Oriented Drive
+
+Field-oriented (field-relative) drive allows drivers to control the robot relative to the field rather than the robot:
+
+```cpp
+// Convert field-relative speeds to robot-relative
+auto robotRelativeSpeeds = frc::ChassisSpeeds::FromFieldRelativeSpeeds(
+    xSpeed,    // Forward velocity (field frame)
+    ySpeed,    // Sideways velocity (field frame)  
+    rotSpeed,  // Rotation rate
+    gyro.GetRotation2d()  // Current robot heading
+);
+
+// Then convert to wheel speeds as normal
+auto wheelSpeeds = kinematics.ToWheelSpeeds(robotRelativeSpeeds);
+```
+
+## Best Practices
+
+1. **Update Odometry Frequently**: Call `Update()` every robot periodic cycle (20ms)
+2. **Reset Encoders**: Zero encoders when resetting odometry
+3. **Calibrate Track Width**: Tune track width empirically for accurate rotation
+4. **Use Gyro for Heading**: Gyros are more accurate than encoder-based heading
+5. **Validate with Field Markers**: Verify odometry accuracy against known field positions
+
+## Common Issues
+
+**Odometry Drift**: Accumulates error over time
+- Solution: Use vision pose estimation to periodically reset
+- Use WPILib's Pose Estimator classes for sensor fusion
+
+**Inaccurate Rotation**: Robot rotates wrong amount
+- Check track width measurement
+- Ensure encoders return distance in meters
+- Verify gyro angle is in correct direction
+
+**Inverted Motion**: Robot moves opposite direction
+- Check encoder polarities
+- Verify wheel speed signs

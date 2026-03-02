@@ -1,0 +1,385 @@
+---
+title: Installation
+description: Install WPILib and set up your development environment for Java and C++ robot programming
+---
+
+# Installing WPILib
+
+This guide will walk you through installing the WPILib development environment for building and deploying robot code to the roboRIO.
+
+<Note>
+  **Recommended:** Use the official WPILib installer which includes VS Code, WPILib extensions, and all required tools in one package. Download from [WPILib Releases](https://github.com/wpilibsuite/allwpilib/releases).
+</Note>
+
+## Prerequisites
+
+Before installing WPILib, ensure your system meets these requirements:
+
+<Tabs>
+  <Tab title="Windows">
+    - Windows 10 or later (64-bit)
+    - At least 4GB of RAM (8GB recommended)
+    - 2GB of available disk space
+    - Administrator access for installation
+  </Tab>
+  <Tab title="macOS">
+    - macOS 11 (Big Sur) or later
+    - Intel or Apple Silicon (M1/M2)
+    - At least 4GB of RAM (8GB recommended)
+    - 2GB of available disk space
+    - For Apple Silicon: Rosetta 2 installed
+  </Tab>
+  <Tab title="Linux">
+    - Ubuntu 20.04 LTS or later (or equivalent)
+    - 64-bit system
+    - At least 4GB of RAM (8GB recommended)
+    - 2GB of available disk space
+  </Tab>
+</Tabs>
+
+## Required Software
+
+WPILib requires specific versions of development tools. Here's what you'll need:
+
+### Java Development Kit (JDK)
+
+<Steps>
+  <Step title="Install JDK 17">
+    WPILib requires JDK 17. The full JDK is required (JRE is insufficient).
+
+    <Tabs>
+      <Tab title="Windows">
+        Download and install the JDK 17 .msi installer from [Eclipse Temurin](https://adoptium.net/temurin/releases/?version=17)
+
+        Run the installer and follow the prompts. The installer will automatically set up environment variables.
+      </Tab>
+      <Tab title="macOS">
+        Download and install the JDK 17 .pkg from [Eclipse Temurin](https://adoptium.net/temurin/releases/?version=17)
+
+        ```bash
+        # Verify installation
+        java -version
+        ```
+
+        You should see output showing Java 17.
+      </Tab>
+      <Tab title="Linux (Ubuntu)">
+        Install OpenJDK 17 using apt:
+
+        ```bash
+        sudo apt update
+        sudo apt install openjdk-17-jdk
+        ```
+
+        Verify the installation:
+
+        ```bash
+        java -version
+        javac -version
+        ```
+      </Tab>
+    </Tabs>
+  </Step>
+
+  <Step title="Verify JDK Installation">
+    Open a terminal/command prompt and run:
+
+    ```bash
+    java -version
+    javac -version
+    ```
+
+    Both commands should report version 17.x.x. If not, check your PATH environment variable.
+
+    <Warning>
+      Make sure `JAVA_HOME` environment variable points to your JDK 17 installation directory, not the JRE.
+    </Warning>
+  </Step>
+</Steps>
+
+### C++ Compiler (Required for C++ Development)
+
+<Steps>
+  <Step title="Install C++ Build Tools">
+    <Tabs>
+      <Tab title="Windows">
+        Install **Visual Studio Community 2022**:
+
+        1. Download from [Visual Studio Downloads](https://visualstudio.microsoft.com/vs/community/)
+        2. Run the installer
+        3. Select **"Desktop development with C++"** workload
+        4. Complete installation (this may take 30+ minutes)
+
+        <Warning>
+          Gradle cannot use the standalone Build Tools for Visual Studio - you must install the full Visual Studio Community edition.
+        </Warning>
+      </Tab>
+      <Tab title="macOS">
+        Install Xcode Command Line Tools:
+
+        ```bash
+        xcode-select --install
+        ```
+
+        **Requirements:** Xcode 14 or later
+
+        For Apple Silicon Macs, install Rosetta 2:
+
+        ```bash
+        softwareupdate --install-rosetta
+        ```
+
+        This is necessary to use the macOS x86 roboRIO toolchain on ARM Macs.
+      </Tab>
+      <Tab title="Linux">
+        Install GCC 11 or greater:
+
+        ```bash
+        sudo apt update
+        sudo apt install build-essential g++-11
+        ```
+
+        Verify installation:
+
+        ```bash
+        g++ --version
+        ```
+      </Tab>
+    </Tabs>
+  </Step>
+</Steps>
+
+## Building from Source
+
+If you're developing WPILib itself or want to use development builds:
+
+<Steps>
+  <Step title="Clone the Repository">
+    Clone the WPILib repository using Git:
+
+    ```bash
+    git clone https://github.com/wpilibsuite/allwpilib.git
+    cd allwpilib
+    ```
+
+    <Warning>
+      The build process uses versioning information from git. Simply downloading the source zip will not work.
+    </Warning>
+  </Step>
+
+  <Step title="Install ARM Toolchain">
+    Install the roboRIO cross-compilation toolchain:
+
+    ```bash
+    ./gradlew installRoboRioToolchain
+    ```
+
+    This downloads and installs the ARM compiler needed to build code for the roboRIO.
+
+    <Note>
+      If the WPILib installer was used, this toolchain is already installed.
+    </Note>
+
+    **Optional:** For Raspberry Pi development:
+
+    ```bash
+    ./gradlew installArm32Toolchain
+    ```
+  </Step>
+
+  <Step title="Build WPILib">
+    Build all WPILib components:
+
+    ```bash
+    ./gradlew build
+    ```
+
+    For faster builds with caching:
+
+    ```bash
+    ./gradlew build --build-cache
+    ```
+
+    This will build:
+    - HAL (Hardware Abstraction Layer)
+    - WPILibJ (Java libraries)
+    - WPILibC (C++ libraries)
+    - ntcore (NetworkTables)
+    - cscore (Camera Server)
+    - wpimath (Math utilities)
+    - And all other components
+
+    <Note>
+      First build may take 20-30 minutes. Subsequent builds are much faster.
+    </Note>
+  </Step>
+
+  <Step title="Publish to Local Maven">
+    To use your local build in robot projects:
+
+    ```bash
+    ./gradlew publish
+    ```
+
+    This publishes artifacts to `~/releases/maven/development`.
+
+    Then update your robot project's `build.gradle` to use the development repository. See [DevelopmentBuilds.md](https://github.com/wpilibsuite/allwpilib/blob/main/DevelopmentBuilds.md) for details.
+  </Step>
+</Steps>
+
+## CMake Build (Alternative)
+
+For Linux coprocessors or developers who prefer CMake:
+
+<Steps>
+  <Step title="Configure CMake">
+    Create a build directory and configure:
+
+    ```bash
+    cmake --preset default
+    ```
+
+    This uses the default preset with Ninja generator and `build-cmake` directory.
+  </Step>
+
+  <Step title="Build Libraries">
+    Build with multiple parallel jobs (recommended 1 job per 2GB RAM):
+
+    ```bash
+    cmake --build build-cmake --parallel 4
+    ```
+
+    <Warning>
+      wpimath requires significant RAM to compile. With less than 16GB RAM, consider building wpimath separately with fewer jobs to avoid crashes.
+    </Warning>
+  </Step>
+
+  <Step title="Install Libraries">
+    Install to system directories:
+
+    ```bash
+    sudo cmake --build build-cmake --target install
+    ```
+
+    Default install location:
+    - **Linux:** `/usr/local`
+    - **Windows:** `C:\Program Files (x86)\allwpilib`
+  </Step>
+</Steps>
+
+### CMake Build Options
+
+Customize the build with these options:
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `BUILD_SHARED_LIBS` | ON | Build shared libraries instead of static |
+| `WITH_JAVA` | OFF | Enable Java and JNI builds |
+| `WITH_CSCORE` | ON | Build camera server (requires OpenCV) |
+| `WITH_GUI` | ON | Build GUI applications (Glass, SysId, etc.) |
+| `WITH_TESTS` | ON | Build C++ unit tests |
+| `WITH_WPILIB` | ON | Build HAL and WPILibC/J |
+
+Example with options:
+
+```bash
+cmake --preset default -DWITH_JAVA=ON -DWITH_TESTS=OFF
+```
+
+## Verification
+
+Verify your installation:
+
+<Steps>
+  <Step title="Check Java">
+    ```bash
+    java -version
+    javac -version
+    ```
+
+    Should show JDK 17.x.x
+  </Step>
+
+  <Step title="Check Gradle (if building from source)">
+    ```bash
+    ./gradlew tasks
+    ```
+
+    Should list available Gradle tasks without errors
+  </Step>
+
+  <Step title="Test Build (Optional)">
+    Run desktop tests to verify everything works:
+
+    ```bash
+    ./gradlew testDesktop
+    ```
+
+    This builds and runs all Java and C++ tests for desktop.
+  </Step>
+</Steps>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Quick Start Guide"
+    icon="rocket"
+    href="/quickstart"
+  >
+    Create your first robot program
+  </Card>
+  <Card
+    title="Official Documentation"
+    icon="book"
+    href="https://docs.wpilib.org"
+  >
+    Comprehensive guides and API reference
+  </Card>
+</CardGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Java version mismatch">
+    If you see Java version errors:
+
+    1. Verify JDK 17 is installed: `java -version`
+    2. Check `JAVA_HOME` environment variable points to JDK 17
+    3. Ensure JDK (not JRE) is in your PATH before any other Java installations
+  </Accordion>
+
+  <Accordion title="Gradle build fails with OutOfMemoryError">
+    Increase Gradle memory by creating/editing `gradle.properties`:
+
+    ```properties
+    org.gradle.jvmargs=-Xmx4g
+    ```
+
+    Or build with fewer parallel jobs:
+
+    ```bash
+    ./gradlew build -Porg.gradle.workers.max=2
+    ```
+  </Accordion>
+
+  <Accordion title="CMake can't find OpenCV">
+    Install OpenCV or disable cscore:
+
+    ```bash
+    cmake --preset default -DWITH_CSCORE=OFF
+    ```
+
+    For custom OpenCV location:
+
+    ```bash
+    cmake --preset default -DOpenCV_DIR=/path/to/opencv/build
+    ```
+  </Accordion>
+
+  <Accordion title="Visual Studio 2022 not detected on Windows">
+    1. Ensure you installed the full Visual Studio Community, not just Build Tools
+    2. Verify the "Desktop development with C++" workload is installed
+    3. Restart your terminal/IDE after installation
+  </Accordion>
+</AccordionGroup>

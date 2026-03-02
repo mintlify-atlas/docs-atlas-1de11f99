@@ -1,0 +1,441 @@
+---
+title: Basic Robot Program Structure
+description: Learn the structure of a WPILib robot program
+---
+
+## Overview
+
+WPILib provides a structured framework for writing robot code. The most common approach is using the `TimedRobot` class, which provides periodic callback methods for different robot states.
+
+## TimedRobot Class
+
+The `TimedRobot` class is the foundation of most WPILib robot programs. It runs periodic functions at a fixed rate (default: 20ms / 50Hz).
+
+### Java Implementation
+
+Source: `wpilibj/src/main/java/edu/wpi/first/wpilibj/TimedRobot.java:18`
+
+<Tabs>
+  <Tab title="Java">
+    ```java
+    package frc.robot;
+
+    import edu.wpi.first.wpilibj.TimedRobot;
+    import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
+    import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
+
+    /**
+     * The TimedRobot class is intended to be subclassed by a user creating a robot program.
+     * 
+     * Periodic functions are called on an interval by a Notifier instance.
+     */
+    public class Robot extends TimedRobot {
+      // Default period is 20ms (0.02 seconds)
+      public static final double kDefaultPeriod = 0.02;
+
+      /**
+       * Robot initialization - runs once when robot starts
+       */
+      @Override
+      public void robotInit() {
+        System.out.println("Robot initialized");
+      }
+
+      /**
+       * Called every ~20ms regardless of mode
+       */
+      @Override
+      public void robotPeriodic() {
+        // This runs in all modes
+      }
+
+      /**
+       * Autonomous initialization - runs once when autonomous starts
+       */
+      @Override
+      public void autonomousInit() {
+        System.out.println("Autonomous started");
+      }
+
+      /**
+       * Autonomous periodic - runs every ~20ms during autonomous
+       */
+      @Override
+      public void autonomousPeriodic() {
+        // Autonomous control code here
+      }
+
+      /**
+       * Teleop initialization - runs once when teleop starts
+       */
+      @Override
+      public void teleopInit() {
+        System.out.println("Teleop started");
+      }
+
+      /**
+       * Teleop periodic - runs every ~20ms during teleop
+       */
+      @Override
+      public void teleopPeriodic() {
+        // Driver control code here
+      }
+
+      /**
+       * Test initialization - runs once when test mode starts
+       */
+      @Override
+      public void testInit() {
+      }
+
+      /**
+       * Test periodic - runs every ~20ms during test mode
+       */
+      @Override
+      public void testPeriodic() {
+      }
+
+      /**
+       * Simulation initialization - runs once in simulation
+       */
+      @Override
+      public void simulationInit() {
+      }
+
+      /**
+       * Simulation periodic - runs every ~20ms in simulation
+       */
+      @Override
+      public void simulationPeriodic() {
+      }
+    }
+    ```
+  </Tab>
+
+  <Tab title="C++">
+    ```cpp
+    #pragma once
+
+    #include <frc/TimedRobot.h>
+
+    /**
+     * TimedRobot implements the IterativeRobotBase robot program framework.
+     * 
+     * The TimedRobot class is intended to be subclassed by a user creating
+     * a robot program. Periodic functions from the base class are called on
+     * an interval by a Notifier instance.
+     */
+    class Robot : public frc::TimedRobot {
+     public:
+      // Default loop period: 20ms
+      static constexpr auto kDefaultPeriod = 20_ms;
+
+      /**
+       * Robot initialization - runs once when robot starts
+       */
+      void RobotInit() override {
+        std::cout << "Robot initialized" << std::endl;
+      }
+
+      /**
+       * Called every ~20ms regardless of mode
+       */
+      void RobotPeriodic() override {
+        // This runs in all modes
+      }
+
+      /**
+       * Autonomous initialization - runs once when autonomous starts
+       */
+      void AutonomousInit() override {
+        std::cout << "Autonomous started" << std::endl;
+      }
+
+      /**
+       * Autonomous periodic - runs every ~20ms during autonomous
+       */
+      void AutonomousPeriodic() override {
+        // Autonomous control code here
+      }
+
+      /**
+       * Teleop initialization - runs once when teleop starts
+       */
+      void TeleopInit() override {
+        std::cout << "Teleop started" << std::endl;
+      }
+
+      /**
+       * Teleop periodic - runs every ~20ms during teleop
+       */
+      void TeleopPeriodic() override {
+        // Driver control code here
+      }
+
+      /**
+       * Test initialization - runs once when test mode starts
+       */
+      void TestInit() override {}
+
+      /**
+       * Test periodic - runs every ~20ms during test mode
+       */
+      void TestPeriodic() override {}
+
+      /**
+       * Simulation initialization - runs once in simulation
+       */
+      void SimulationInit() override {}
+
+      /**
+       * Simulation periodic - runs every ~20ms in simulation
+       */
+      void SimulationPeriodic() override {}
+    };
+    ```
+  </Tab>
+</Tabs>
+
+## Custom Loop Period
+
+You can customize the loop period when constructing the robot:
+
+<Tabs>
+  <Tab title="Java">
+    ```java
+    // Custom period: 10ms (100Hz)
+    public Robot() {
+      super(0.01);  // 10ms period
+    }
+
+    // Or using units
+    import static edu.wpi.first.units.Units.Seconds;
+    import edu.wpi.first.units.measure.Time;
+
+    public Robot() {
+      super(Time.ofSeconds(0.01));
+    }
+    ```
+  </Tab>
+
+  <Tab title="C++">
+    ```cpp
+    // Custom period: 10ms (100Hz)
+    Robot() : frc::TimedRobot(10_ms) {}
+
+    // Or using frequency
+    #include <units/frequency.h>
+
+    Robot() : frc::TimedRobot(100_Hz) {}
+    ```
+  </Tab>
+</Tabs>
+
+## Periodic Callbacks
+
+Source: `wpilibj/src/main/java/edu/wpi/first/wpilibj/TimedRobot.java:203`
+
+You can add custom periodic callbacks that run at different rates:
+
+<Tabs>
+  <Tab title="Java">
+    ```java
+    @Override
+    public void robotInit() {
+      // Run sensor update every 50ms
+      addPeriodic(this::updateSensors, 0.05);
+      
+      // Run vision processing every 100ms with 10ms offset
+      addPeriodic(this::processVision, 0.1, 0.01);
+    }
+
+    private void updateSensors() {
+      // Read sensor values
+    }
+
+    private void processVision() {
+      // Process camera frames
+    }
+    ```
+  </Tab>
+
+  <Tab title="C++">
+    ```cpp
+    void RobotInit() override {
+      // Run sensor update every 50ms
+      AddPeriodic([this] { UpdateSensors(); }, 50_ms);
+      
+      // Run vision processing every 100ms with 10ms offset
+      AddPeriodic([this] { ProcessVision(); }, 100_ms, 10_ms);
+    }
+
+   private:
+    void UpdateSensors() {
+      // Read sensor values
+    }
+
+    void ProcessVision() {
+      // Process camera frames
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Main Entry Point
+
+<Tabs>
+  <Tab title="Java">
+    ```java
+    package frc.robot;
+
+    import edu.wpi.first.wpilibj.RobotBase;
+
+    public final class Main {
+      private Main() {}
+
+      public static void main(String... args) {
+        RobotBase.startRobot(Robot::new);
+      }
+    }
+    ```
+  </Tab>
+
+  <Tab title="C++">
+    ```cpp
+    #include <frc/RobotBase.h>
+    #include "Robot.h"
+
+    int main() {
+      return frc::StartRobot<Robot>();
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Complete Example
+
+Here's a complete robot program that drives with a joystick:
+
+<Tabs>
+  <Tab title="Java">
+    ```java
+    package frc.robot;
+
+    import edu.wpi.first.wpilibj.TimedRobot;
+    import edu.wpi.first.wpilibj.Joystick;
+    import edu.wpi.first.wpilibj.drive.DifferentialDrive;
+    import edu.wpi.first.wpilibj.motorcontrol.PWMSparkMax;
+
+    public class Robot extends TimedRobot {
+      private DifferentialDrive m_robotDrive;
+      private Joystick m_driverController;
+
+      @Override
+      public void robotInit() {
+        // Initialize motor controllers
+        PWMSparkMax leftMotor = new PWMSparkMax(0);
+        PWMSparkMax rightMotor = new PWMSparkMax(1);
+        
+        // Create drive base
+        m_robotDrive = new DifferentialDrive(leftMotor, rightMotor);
+        
+        // Initialize joystick
+        m_driverController = new Joystick(0);
+      }
+
+      @Override
+      public void teleopPeriodic() {
+        // Arcade drive with joystick
+        m_robotDrive.arcadeDrive(
+          -m_driverController.getY(),
+          m_driverController.getX()
+        );
+      }
+
+      @Override
+      public void disabledInit() {
+        // Stop motors when disabled
+        m_robotDrive.stopMotor();
+      }
+    }
+    ```
+  </Tab>
+
+  <Tab title="C++">
+    ```cpp
+    #include <frc/TimedRobot.h>
+    #include <frc/Joystick.h>
+    #include <frc/drive/DifferentialDrive.h>
+    #include <frc/motorcontrol/PWMSparkMax.h>
+
+    class Robot : public frc::TimedRobot {
+     public:
+      void RobotInit() override {
+        // Motor controllers are initialized in declaration
+      }
+
+      void TeleopPeriodic() override {
+        // Arcade drive with joystick
+        m_robotDrive.ArcadeDrive(
+          -m_driverController.GetY(),
+          m_driverController.GetX()
+        );
+      }
+
+      void DisabledInit() override {
+        // Stop motors when disabled
+        m_robotDrive.StopMotor();
+      }
+
+     private:
+      frc::PWMSparkMax m_leftMotor{0};
+      frc::PWMSparkMax m_rightMotor{1};
+      frc::DifferentialDrive m_robotDrive{m_leftMotor, m_rightMotor};
+      frc::Joystick m_driverController{0};
+    };
+    ```
+  </Tab>
+</Tabs>
+
+## Loop Timing
+
+Source: `wpilibj/src/main/java/edu/wpi/first/wpilibj/TimedRobot.java:190`
+
+### Get Loop Start Time
+
+Access the precise start time of the current loop iteration:
+
+<Tabs>
+  <Tab title="Java">
+    ```java
+    @Override
+    public void teleopPeriodic() {
+      long loopStartTime = getLoopStartTime();
+      // Time is in microseconds, same base as Timer.getFPGATimestamp()
+    }
+    ```
+  </Tab>
+
+  <Tab title="C++">
+    ```cpp
+    void TeleopPeriodic() override {
+      uint64_t loopStartTime = GetLoopStartTime();
+      // Time is in microseconds, same base as frc::Timer::GetFPGATimestamp()
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Best Practices
+
+- **Keep periodic methods fast** - They should complete in under 20ms
+- **Initialize in Init methods** - Don't do heavy initialization in periodic methods
+- **Use robotPeriodic sparingly** - It runs in all modes, use mode-specific periodic methods when possible
+- **Don't block** - Avoid loops or delays in periodic methods
+- **Clean up resources** - Override `disabledInit()` to stop motors and release resources
+
+## Next Steps
+
+- [Motor Control](/guides/motor-control) - Control motors and actuators
+- [Sensors](/guides/sensors) - Read sensor data
+- [Pneumatics](/guides/pneumatics) - Control pneumatic systems

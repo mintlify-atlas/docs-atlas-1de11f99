@@ -1,0 +1,216 @@
+---
+title: State-Space Control
+description: Advanced control using state-space methods including LQR controllers
+---
+
+State-space control provides a modern, mathematical framework for controlling complex systems. WPILib includes comprehensive support for state-space control through the LinearSystem and LinearQuadraticRegulator classes.
+
+## What is State-Space Control?
+
+State-space control represents a system using matrices that describe how the system evolves over time. Instead of dealing with individual variables, state-space models group all system states into vectors and use linear algebra to predict and control behavior.
+
+A state-space system is defined by:
+- **A matrix**: System dynamics (how states evolve)
+- **B matrix**: Input influence (how control inputs affect states)
+- **C matrix**: Output mapping (what we can measure)
+- **D matrix**: Feedthrough (direct input-to-output connection)
+
+## Linear System
+
+The `LinearSystem` class represents a plant (physical system) using state-space notation.
+
+### Creating a Linear System
+
+```cpp
+#include <frc/system/LinearSystem.h>
+#include <frc/system/plant/LinearSystemId.h>
+
+// Create a flywheel system
+auto flywheelPlant = frc::LinearSystemId::FlywheelSystem(
+    frc::DCMotor::NEO(2),  // 2 NEO motors
+    0.00032_kg_sq_m,       // Moment of inertia
+    1.0                    // Gearing
+);
+
+// Create an elevator system
+auto elevatorPlant = frc::LinearSystemId::ElevatorSystem(
+    frc::DCMotor::NEO(2),  // 2 NEO motors
+    14_kg,                 // Carriage mass
+    0.75_in,               // Drum radius
+    1.0                    // Gearing
+);
+
+// Create a single-jointed arm system
+auto armPlant = frc::LinearSystemId::SingleJointedArmSystem(
+    frc::DCMotor::NEO(2),  // 2 NEO motors
+    0.00032_kg_sq_m,       // Moment of inertia
+    1.0                    // Gearing
+);
+```
+
+Location: `wpimath/src/main/native/include/frc/system/LinearSystem.h:35`
+
+## Linear Quadratic Regulator (LQR)
+
+The `LinearQuadraticRegulator` class implements optimal state feedback control. LQR controllers minimize a cost function that balances control effort against tracking error.
+
+### Control Law
+
+LQR uses the control law: **u = K(r - x)**
+
+Where:
+- **u**: Control input (voltages)
+- **K**: Optimal gain matrix
+- **r**: Reference state
+- **x**: Current state
+
+### Creating an LQR Controller
+
+```cpp
+#include <frc/controller/LinearQuadraticRegulator.h>
+
+// Define state and input tolerances
+frc::LinearQuadraticRegulator<2, 1> controller{
+    flywheelPlant,
+    {8.0, 10.0},  // Q elems - state cost (position, velocity)
+    {12.0},       // R elems - control effort cost
+    20_ms         // Discretization timestep
+};
+```
+
+Location: `wpimath/src/main/native/include/frc/controller/LinearQuadraticRegulator.h:38`
+
+### Tuning LQR Controllers
+
+The Q and R matrices determine controller behavior:
+
+- **Q (State Cost)**: Larger values make the controller try harder to minimize error in that state
+- **R (Control Cost)**: Larger values limit control effort (prevent aggressive control)
+
+**Tuning Process:**
+1. Start with Q elements as maximum acceptable errors
+2. Start with R elements as maximum control inputs
+3. Increase Q values to make response more aggressive
+4. Increase R values to reduce control effort and smooth response
+
+```cpp
+// More aggressive position tracking, less aggressive velocity
+frc::LinearQuadraticRegulator<2, 1> aggressiveController{
+    plant,
+    {1.0, 10.0},   // Tighter position tolerance
+    {12.0},
+    20_ms
+};
+
+// Smoother control with less effort
+frc::LinearQuadraticRegulator<2, 1> smoothController{
+    plant,
+    {8.0, 10.0},
+    {20.0},        // Higher R reduces control effort
+    20_ms
+};
+```
+
+### Using the Controller
+
+```cpp
+// In robot periodic code
+void TeleopPeriodic() {
+  // Get current state from sensors
+  Eigen::Vector2d currentState{
+      encoder.GetPosition(),
+      encoder.GetVelocity()
+  };
+  
+  // Set reference (desired state)
+  Eigen::Vector2d reference{10.0, 0.0};  // 10 units position, 0 velocity
+  
+  // Calculate optimal control input
+  auto controlInput = controller.Calculate(currentState, reference);
+  
+  // Apply to motor (controlInput is voltage)
+  motor.SetVoltage(units::volt_t{controlInput(0)});
+}
+```
+
+## Latency Compensation
+
+LQR controllers can compensate for input delays, which is critical when sensor measurements are delayed:
+
+```cpp
+// Adjust controller gain for 20ms sensor delay
+controller.LatencyCompensate(plant, 20_ms, 20_ms);
+```
+
+Location: `wpimath/src/main/native/include/frc/controller/LinearQuadraticRegulator.h:297`
+
+## State-Space System Loop
+
+Combine a plant, controller, and observer for complete state-space control:
+
+```cpp
+#include <frc/system/LinearSystemLoop.h>
+#include <frc/estimator/KalmanFilter.h>
+
+// Create Kalman filter for state estimation
+frc::KalmanFilter<2, 1, 1> observer{
+    plant,
+    {0.5, 1.0},   // State standard deviations
+    {0.1},        // Measurement standard deviations  
+    20_ms
+};
+
+// Create system loop
+frc::LinearSystemLoop<2, 1, 1> loop{
+    plant,
+    controller,
+    observer,
+    12_V,         // Maximum voltage
+    20_ms
+};
+```
+
+## Common Plant Models
+
+WPILib provides factory methods for common FRC mechanisms:
+
+```cpp
+// Differential drive
+auto drivetrainPlant = frc::LinearSystemId::DrivetrainVelocitySystem(
+    frc::DCMotor::NEO(2),   // Left motors
+    50_kg,                  // Robot mass
+    0.7_in,                 // Wheel radius
+    0.5_m,                  // Track width
+    1.0                     // Gearing
+);
+
+// DC motor position system
+auto positionPlant = frc::LinearSystemId::DCMotorSystem(
+    frc::DCMotor::NEO(1),   // 1 NEO motor
+    0.001_kg_sq_m,          // Moment of inertia
+    1.0                     // Gearing
+);
+```
+
+## Advantages of State-Space Control
+
+1. **Optimal Control**: LQR provides mathematically optimal gains
+2. **Multiple Objectives**: Balance multiple goals (speed, accuracy, control effort)
+3. **MIMO Systems**: Control multiple inputs and outputs simultaneously
+4. **State Estimation**: Integrate Kalman filters for robust control with noisy sensors
+5. **Predictable Behavior**: Well-understood mathematical framework
+
+## When to Use State-Space Control
+
+State-space control is ideal for:
+- Mechanisms requiring optimal performance (flywheels, arms, elevators)
+- Systems with multiple states to control
+- Applications requiring smooth, predictable control
+- When you have good system models
+
+For simpler applications, PID control may be sufficient.
+
+## Further Reading
+
+- [Controls Engineering in FRC](https://file.tavsys.net/control/controls-engineering-in-frc.pdf) - Comprehensive guide to state-space control
+- WPILib State-Space Documentation - Official tutorials and examples

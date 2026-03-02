@@ -1,0 +1,507 @@
+---
+title: Motor Control Guide
+description: Control motors using WPILib motor controller classes
+---
+
+## Overview
+
+WPILib provides a unified interface for controlling various motor controllers through the `MotorController` interface. This guide covers PWM motor controllers and best practices.
+
+## MotorController Interface
+
+Source: `wpilibj/src/main/java/edu/wpi/first/wpilibj/motorcontrol/MotorController.java:12`
+
+All motor controllers implement the `MotorController` interface:
+
+<Tabs>
+  <Tab title="Java">
+    ```java
+    public interface MotorController {
+      // Set motor speed (-1.0 to 1.0)
+      void set(double speed);
+      
+      // Set voltage with compensation
+      void setVoltage(double outputVolts);
+      
+      // Get current speed
+      double get();
+      
+      // Invert motor direction
+      void setInverted(boolean isInverted);
+      boolean getInverted();
+      
+      // Stop motor
+      void disable();
+      void stopMotor();
+    }
+    ```
+  </Tab>
+
+  <Tab title="C++">
+    ```cpp
+    class MotorController {
+     public:
+      // Set motor speed (-1.0 to 1.0)
+      virtual void Set(double speed) = 0;
+      
+      // Set voltage with compensation
+      virtual void SetVoltage(units::volt_t output);
+      
+      // Get current speed
+      virtual double Get() const = 0;
+      
+      // Invert motor direction
+      virtual void SetInverted(bool isInverted) = 0;
+      virtual bool GetInverted() const = 0;
+      
+      // Stop motor
+      virtual void Disable() = 0;
+      virtual void StopMotor() = 0;
+    };
+    ```
+  </Tab>
+</Tabs>
+
+## PWM Motor Controllers
+
+Source: `wpilibj/src/main/java/edu/wpi/first/wpilibj/motorcontrol/PWMMotorController.java:15`
+
+PWM motor controllers connect to the roboRIO's PWM ports (0-9 onboard, 10-19 on MXP).
+
+### Basic Usage
+
+<Tabs>
+  <Tab title="Java">
+    ```java
+    import edu.wpi.first.wpilibj.motorcontrol.PWMSparkMax;
+    import edu.wpi.first.wpilibj.motorcontrol.PWMVictorSPX;
+    import edu.wpi.first.wpilibj.motorcontrol.PWMTalonSRX;
+
+    public class DriveSubsystem {
+      private PWMSparkMax m_leftMotor;
+      private PWMVictorSPX m_rightMotor;
+
+      public DriveSubsystem() {
+        // PWM channel 0
+        m_leftMotor = new PWMSparkMax(0);
+        // PWM channel 1
+        m_rightMotor = new PWMVictorSPX(1);
+      }
+
+      public void setMotors(double leftSpeed, double rightSpeed) {
+        m_leftMotor.set(leftSpeed);
+        m_rightMotor.set(rightSpeed);
+      }
+    }
+    ```
+  </Tab>
+
+  <Tab title="C++">
+    ```cpp
+    #include <frc/motorcontrol/PWMSparkMax.h>
+    #include <frc/motorcontrol/PWMVictorSPX.h>
+    #include <frc/motorcontrol/PWMTalonSRX.h>
+
+    class DriveSubsystem {
+     public:
+      DriveSubsystem()
+        : m_leftMotor(0),   // PWM channel 0
+          m_rightMotor(1)   // PWM channel 1
+      {}
+
+      void SetMotors(double leftSpeed, double rightSpeed) {
+        m_leftMotor.Set(leftSpeed);
+        m_rightMotor.Set(rightSpeed);
+      }
+
+     private:
+      frc::PWMSparkMax m_leftMotor;
+      frc::PWMVictorSPX m_rightMotor;
+    };
+    ```
+  </Tab>
+</Tabs>
+
+## Setting Motor Speed
+
+Source: `wpilibj/src/main/java/edu/wpi/first/wpilibj/motorcontrol/PWMMotorController.java:53`
+
+### Speed Control
+
+Motor speed ranges from -1.0 (full reverse) to 1.0 (full forward):
+
+<Tabs>
+  <Tab title="Java">
+    ```java
+    // Full forward
+    motor.set(1.0);
+    
+    // Half speed forward
+    motor.set(0.5);
+    
+    // Stopped
+    motor.set(0.0);
+    
+    // Full reverse
+    motor.set(-1.0);
+    
+    // Stop motor (preferred over set(0))
+    motor.stopMotor();
+    ```
+  </Tab>
+
+  <Tab title="C++">
+    ```cpp
+    // Full forward
+    motor.Set(1.0);
+    
+    // Half speed forward
+    motor.Set(0.5);
+    
+    // Stopped
+    motor.Set(0.0);
+    
+    // Full reverse
+    motor.Set(-1.0);
+    
+    // Stop motor (preferred over Set(0))
+    motor.StopMotor();
+    ```
+  </Tab>
+</Tabs>
+
+### Voltage Control
+
+Source: `wpilibj/src/main/java/edu/wpi/first/wpilibj/motorcontrol/MotorController.java:31`
+
+Voltage control compensates for battery voltage drops:
+
+<Tabs>
+  <Tab title="Java">
+    ```java
+    // Set to 6 volts (compensates for battery sag)
+    motor.setVoltage(6.0);
+    
+    // Must be called regularly (every loop)
+    @Override
+    public void teleopPeriodic() {
+      motor.setVoltage(desiredVoltage);
+    }
+    ```
+  </Tab>
+
+  <Tab title="C++">
+    ```cpp
+    #include <units/voltage.h>
+    
+    // Set to 6 volts (compensates for battery sag)
+    motor.SetVoltage(6_V);
+    
+    // Must be called regularly (every loop)
+    void TeleopPeriodic() override {
+      motor.SetVoltage(desiredVoltage);
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Motor Inversion
+
+Source: `wpilibj/src/main/java/edu/wpi/first/wpilibj/motorcontrol/PWMMotorController.java:88`
+
+Invert motor direction in software:
+
+<Tabs>
+  <Tab title="Java">
+    ```java
+    PWMSparkMax leftMotor = new PWMSparkMax(0);
+    PWMSparkMax rightMotor = new PWMSparkMax(1);
+    
+    // Right motor is mounted backwards
+    rightMotor.setInverted(true);
+    
+    // Now both motors drive forward with positive values
+    leftMotor.set(0.5);
+    rightMotor.set(0.5);
+    ```
+  </Tab>
+
+  <Tab title="C++">
+    ```cpp
+    frc::PWMSparkMax leftMotor{0};
+    frc::PWMSparkMax rightMotor{1};
+    
+    // Right motor is mounted backwards
+    rightMotor.SetInverted(true);
+    
+    // Now both motors drive forward with positive values
+    leftMotor.Set(0.5);
+    rightMotor.Set(0.5);
+    ```
+  </Tab>
+</Tabs>
+
+## Follower Motors
+
+Source: `wpilibj/src/main/java/edu/wpi/first/wpilibj/motorcontrol/PWMMotorController.java:156`
+
+Make one motor follow another:
+
+<Tabs>
+  <Tab title="Java">
+    ```java
+    PWMSparkMax leader = new PWMSparkMax(0);
+    PWMSparkMax follower1 = new PWMSparkMax(1);
+    PWMSparkMax follower2 = new PWMSparkMax(2);
+    
+    // Followers mirror leader
+    leader.addFollower(follower1);
+    leader.addFollower(follower2);
+    
+    // Only control the leader
+    leader.set(0.8);
+    // follower1 and follower2 automatically set to 0.8
+    ```
+  </Tab>
+
+  <Tab title="C++">
+    ```cpp
+    frc::PWMSparkMax leader{0};
+    frc::PWMSparkMax follower1{1};
+    frc::PWMSparkMax follower2{2};
+    
+    // Followers mirror leader
+    leader.AddFollower(follower1);
+    leader.AddFollower(follower2);
+    
+    // Only control the leader
+    leader.Set(0.8);
+    // follower1 and follower2 automatically set to 0.8
+    ```
+  </Tab>
+</Tabs>
+
+## Motor Controller Groups
+
+Group multiple motor controllers together:
+
+<Tabs>
+  <Tab title="Java">
+    ```java
+    import edu.wpi.first.wpilibj.motorcontrol.MotorControllerGroup;
+    import edu.wpi.first.wpilibj.motorcontrol.PWMSparkMax;
+
+    PWMSparkMax leftFront = new PWMSparkMax(0);
+    PWMSparkMax leftRear = new PWMSparkMax(1);
+    MotorControllerGroup leftMotors = new MotorControllerGroup(leftFront, leftRear);
+    
+    PWMSparkMax rightFront = new PWMSparkMax(2);
+    PWMSparkMax rightRear = new PWMSparkMax(3);
+    MotorControllerGroup rightMotors = new MotorControllerGroup(rightFront, rightRear);
+    
+    // Control both motors as one
+    leftMotors.set(0.5);
+    rightMotors.set(-0.5);
+    ```
+  </Tab>
+
+  <Tab title="C++">
+    ```cpp
+    #include <frc/motorcontrol/MotorControllerGroup.h>
+    #include <frc/motorcontrol/PWMSparkMax.h>
+
+    frc::PWMSparkMax leftFront{0};
+    frc::PWMSparkMax leftRear{1};
+    frc::MotorControllerGroup leftMotors{leftFront, leftRear};
+    
+    frc::PWMSparkMax rightFront{2};
+    frc::PWMSparkMax rightRear{3};
+    frc::MotorControllerGroup rightMotors{rightFront, rightRear};
+    
+    // Control both motors as one
+    leftMotors.Set(0.5);
+    rightMotors.Set(-0.5);
+    ```
+  </Tab>
+</Tabs>
+
+## Deadband Elimination
+
+Source: `wpilibj/src/main/java/edu/wpi/first/wpilibj/motorcontrol/PWMMotorController.java:147`
+
+Eliminate motor controller deadband for more precise low-speed control:
+
+<Tabs>
+  <Tab title="Java">
+    ```java
+    PWMSparkMax motor = new PWMSparkMax(0);
+    
+    // Enable deadband elimination
+    motor.enableDeadbandElimination(true);
+    ```
+  </Tab>
+
+  <Tab title="C++">
+    ```cpp
+    frc::PWMSparkMax motor{0};
+    
+    // Enable deadband elimination
+    motor.EnableDeadbandElimination(true);
+    ```
+  </Tab>
+</Tabs>
+
+## Complete Drive Example
+
+<Tabs>
+  <Tab title="Java">
+    ```java
+    import edu.wpi.first.wpilibj.TimedRobot;
+    import edu.wpi.first.wpilibj.Joystick;
+    import edu.wpi.first.wpilibj.motorcontrol.PWMSparkMax;
+    import edu.wpi.first.wpilibj.motorcontrol.MotorControllerGroup;
+    import edu.wpi.first.wpilibj.drive.DifferentialDrive;
+
+    public class Robot extends TimedRobot {
+      private PWMSparkMax m_leftFront;
+      private PWMSparkMax m_leftRear;
+      private PWMSparkMax m_rightFront;
+      private PWMSparkMax m_rightRear;
+      private DifferentialDrive m_drive;
+      private Joystick m_controller;
+
+      @Override
+      public void robotInit() {
+        // Initialize motors
+        m_leftFront = new PWMSparkMax(0);
+        m_leftRear = new PWMSparkMax(1);
+        m_rightFront = new PWMSparkMax(2);
+        m_rightRear = new PWMSparkMax(3);
+
+        // Right side is inverted
+        m_rightFront.setInverted(true);
+        m_rightRear.setInverted(true);
+
+        // Group motors
+        MotorControllerGroup leftMotors = new MotorControllerGroup(m_leftFront, m_leftRear);
+        MotorControllerGroup rightMotors = new MotorControllerGroup(m_rightFront, m_rightRear);
+
+        // Create drive
+        m_drive = new DifferentialDrive(leftMotors, rightMotors);
+        m_controller = new Joystick(0);
+      }
+
+      @Override
+      public void teleopPeriodic() {
+        // Arcade drive
+        m_drive.arcadeDrive(
+          -m_controller.getY(),  // Forward/backward
+          m_controller.getX()    // Rotation
+        );
+      }
+
+      @Override
+      public void disabledInit() {
+        m_drive.stopMotor();
+      }
+    }
+    ```
+  </Tab>
+
+  <Tab title="C++">
+    ```cpp
+    #include <frc/TimedRobot.h>
+    #include <frc/Joystick.h>
+    #include <frc/motorcontrol/PWMSparkMax.h>
+    #include <frc/motorcontrol/MotorControllerGroup.h>
+    #include <frc/drive/DifferentialDrive.h>
+
+    class Robot : public frc::TimedRobot {
+     public:
+      void RobotInit() override {
+        // Right side is inverted
+        m_rightFront.SetInverted(true);
+        m_rightRear.SetInverted(true);
+      }
+
+      void TeleopPeriodic() override {
+        // Arcade drive
+        m_drive.ArcadeDrive(
+          -m_controller.GetY(),  // Forward/backward
+          m_controller.GetX()    // Rotation
+        );
+      }
+
+      void DisabledInit() override {
+        m_drive.StopMotor();
+      }
+
+     private:
+      frc::PWMSparkMax m_leftFront{0};
+      frc::PWMSparkMax m_leftRear{1};
+      frc::PWMSparkMax m_rightFront{2};
+      frc::PWMSparkMax m_rightRear{3};
+      
+      frc::MotorControllerGroup m_leftMotors{m_leftFront, m_leftRear};
+      frc::MotorControllerGroup m_rightMotors{m_rightFront, m_rightRear};
+      
+      frc::DifferentialDrive m_drive{m_leftMotors, m_rightMotors};
+      frc::Joystick m_controller{0};
+    };
+    ```
+  </Tab>
+</Tabs>
+
+## Motor Safety
+
+Motor controllers have built-in safety timeouts to prevent runaway robots:
+
+<Tabs>
+  <Tab title="Java">
+    ```java
+    PWMSparkMax motor = new PWMSparkMax(0);
+    
+    // Motor will stop if not updated within timeout
+    motor.setExpiration(0.5);  // 500ms timeout
+    motor.setSafetyEnabled(true);
+    
+    @Override
+    public void teleopPeriodic() {
+      // Must call set() regularly to keep motor running
+      motor.set(speed);
+    }
+    ```
+  </Tab>
+
+  <Tab title="C++">
+    ```cpp
+    frc::PWMSparkMax motor{0};
+    
+    void RobotInit() override {
+      // Motor will stop if not updated within timeout
+      motor.SetExpiration(0.5_s);  // 500ms timeout
+      motor.SetSafetyEnabled(true);
+    }
+    
+    void TeleopPeriodic() override {
+      // Must call Set() regularly to keep motor running
+      motor.Set(speed);
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Best Practices
+
+- **Always stop motors when disabled** - Override `disabledInit()` to call `stopMotor()`
+- **Use voltage control for feedforward** - Provides consistent behavior regardless of battery voltage
+- **Invert in software** - Use `setInverted()` rather than swapping wires
+- **Group motors logically** - Use MotorControllerGroup for motors that always move together
+- **Enable motor safety** - Prevents runaway robots if code crashes
+- **Check current draw** - Monitor with PowerDistribution class to avoid breaker trips
+
+## Next Steps
+
+- [Sensors](/guides/sensors) - Read encoder and gyro data
+- [Pneumatics](/guides/pneumatics) - Control pneumatic actuators
+- [Vision](/guides/vision) - Process camera images

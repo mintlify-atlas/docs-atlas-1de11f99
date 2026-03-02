@@ -1,0 +1,445 @@
+---
+title: WPIMath API
+description: Mathematics, kinematics, control theory, and trajectory generation libraries
+---
+
+WPIMath provides mathematical utilities, control theory implementations, and motion planning capabilities for FRC robots.
+
+## Package Structure
+
+### Java
+- `edu.wpi.first.math` - Main package
+- `edu.wpi.first.math.controller` - PID and feedforward controllers
+- `edu.wpi.first.math.estimator` - State estimation (Kalman filters)
+- `edu.wpi.first.math.filter` - Signal filtering
+- `edu.wpi.first.math.geometry` - 2D/3D geometry primitives
+- `edu.wpi.first.math.kinematics` - Drive kinematics
+- `edu.wpi.first.math.trajectory` - Motion profiling
+- `edu.wpi.first.math.spline` - Spline generation
+
+### C++
+- `frc` namespace for all classes
+- Headers in `frc/controller/`, `frc/estimator/`, `frc/geometry/`, etc.
+
+## Core Modules
+
+<CardGroup cols={2}>
+  <Card title="Controllers" icon="sliders" href="#controllers">
+    PID, feedforward, and advanced control
+  </Card>
+  <Card title="Geometry" icon="shapes" href="#geometry">
+    Poses, transforms, and coordinate systems
+  </Card>
+  <Card title="Kinematics" icon="car" href="#kinematics">
+    Differential, mecanum, and swerve drive
+  </Card>
+  <Card title="Trajectory" icon="route" href="#trajectory">
+    Motion profiling and path following
+  </Card>
+  <Card title="Estimators" icon="chart-line" href="#state-estimation">
+    Kalman filters and odometry
+  </Card>
+  <Card title="Filters" icon="filter" href="#filters">
+    Signal processing and noise reduction
+  </Card>
+</CardGroup>
+
+## Controllers
+
+### PID Controller
+
+Proportional-Integral-Derivative controller for feedback control.
+
+```java
+import edu.wpi.first.math.controller.PIDController;
+
+// Create PID controller
+PIDController controller = new PIDController(0.1, 0.0, 0.05);
+
+// Set setpoint
+controller.setSetpoint(100.0);
+
+// Calculate output
+double output = controller.calculate(currentPosition);
+
+// Configure options
+controller.setTolerance(5.0);  // Position tolerance
+controller.enableContinuousInput(-180, 180);  // For angles
+boolean atSetpoint = controller.atSetpoint();
+```
+
+```cpp
+#include <frc/controller/PIDController.h>
+
+// Create PID controller
+frc::PIDController controller{0.1, 0.0, 0.05};
+
+// Set setpoint
+controller.SetSetpoint(100.0);
+
+// Calculate output
+double output = controller.Calculate(currentPosition);
+
+// Configure options
+controller.SetTolerance(5.0);
+controller.EnableContinuousInput(-180_deg, 180_deg);
+bool atSetpoint = controller.AtSetpoint();
+```
+
+### ProfiledPIDController
+
+PID controller with trapezoidal motion profiling.
+
+```java
+import edu.wpi.first.math.controller.ProfiledPIDController;
+import edu.wpi.first.math.trajectory.TrapezoidProfile;
+
+// Create constraints
+TrapezoidProfile.Constraints constraints = 
+    new TrapezoidProfile.Constraints(2.0, 1.0);  // max vel, max accel
+
+// Create profiled PID controller
+ProfiledPIDController controller = 
+    new ProfiledPIDController(1.0, 0.0, 0.0, constraints);
+
+// Set goal
+controller.setGoal(100.0);
+
+// Calculate output with profiling
+double output = controller.calculate(currentPosition);
+```
+
+### Feedforward Controllers
+
+```java
+import edu.wpi.first.math.controller.SimpleMotorFeedforward;
+import edu.wpi.first.math.controller.ArmFeedforward;
+import edu.wpi.first.math.controller.ElevatorFeedforward;
+
+// Simple motor feedforward (kS, kV, kA)
+SimpleMotorFeedforward ff = new SimpleMotorFeedforward(0.5, 2.3, 0.1);
+double voltage = ff.calculate(velocity, acceleration);
+
+// Arm feedforward (kS, kG, kV, kA)
+ArmFeedforward armFF = new ArmFeedforward(0.5, 0.8, 2.3, 0.1);
+double armVoltage = armFF.calculate(angle, velocity, acceleration);
+
+// Elevator feedforward (kS, kG, kV, kA)
+ElevatorFeedforward elevatorFF = new ElevatorFeedforward(0.5, 0.8, 2.3, 0.1);
+double elevatorVoltage = elevatorFF.calculate(velocity, acceleration);
+```
+
+## Geometry
+
+### 2D Geometry Primitives
+
+```java
+import edu.wpi.first.math.geometry.*;
+import edu.wpi.first.math.util.Units;
+
+// Translation2d - represents (x, y) position
+Translation2d translation = new Translation2d(1.0, 2.0);  // meters
+double distance = translation.getNorm();
+Translation2d rotated = translation.rotateBy(Rotation2d.fromDegrees(90));
+
+// Rotation2d - represents angle
+Rotation2d rotation = Rotation2d.fromDegrees(45);
+Rotation2d fromRadians = new Rotation2d(Math.PI / 4);
+double cos = rotation.getCos();
+double sin = rotation.getSin();
+
+// Pose2d - position + rotation
+Pose2d pose = new Pose2d(1.0, 2.0, Rotation2d.fromDegrees(45));
+Translation2d translation = pose.getTranslation();
+Rotation2d rotation = pose.getRotation();
+
+// Transform2d - relative transformation
+Transform2d transform = new Transform2d(
+    new Translation2d(1.0, 0.0),
+    Rotation2d.fromDegrees(30));
+Pose2d newPose = pose.plus(transform);
+```
+
+### 3D Geometry Primitives
+
+```java
+import edu.wpi.first.math.geometry.*;
+
+// Translation3d - represents (x, y, z) position
+Translation3d translation3d = new Translation3d(1.0, 2.0, 3.0);
+
+// Rotation3d - represents 3D orientation
+Rotation3d rotation3d = new Rotation3d(
+    Math.PI / 4,  // roll
+    0.0,          // pitch
+    Math.PI / 2   // yaw
+);
+
+// Pose3d - 3D position + orientation
+Pose3d pose3d = new Pose3d(translation3d, rotation3d);
+
+// Transform3d - 3D transformation
+Transform3d transform3d = new Transform3d(translation3d, rotation3d);
+```
+
+## Kinematics
+
+### Differential Drive Kinematics
+
+```java
+import edu.wpi.first.math.kinematics.*;
+
+// Create kinematics with track width
+DifferentialDriveKinematics kinematics = 
+    new DifferentialDriveKinematics(0.7);  // meters
+
+// Convert chassis speeds to wheel speeds
+ChassisSpeeds speeds = new ChassisSpeeds(
+    2.0,  // vx (m/s)
+    0.0,  // vy (m/s)
+    1.0   // omega (rad/s)
+);
+DifferentialDriveWheelSpeeds wheelSpeeds = 
+    kinematics.toWheelSpeeds(speeds);
+
+// Convert wheel speeds to chassis speeds
+ChassisSpeeds chassisSpeeds = kinematics.toChassisSpeeds(wheelSpeeds);
+```
+
+### Mecanum Drive Kinematics
+
+```java
+import edu.wpi.first.math.kinematics.*;
+
+// Create kinematics with wheel positions
+Translation2d frontLeft = new Translation2d(0.3, 0.3);
+Translation2d frontRight = new Translation2d(0.3, -0.3);
+Translation2d backLeft = new Translation2d(-0.3, 0.3);
+Translation2d backRight = new Translation2d(-0.3, -0.3);
+
+MecanumDriveKinematics kinematics = new MecanumDriveKinematics(
+    frontLeft, frontRight, backLeft, backRight);
+
+// Convert chassis speeds to wheel speeds
+MecanumDriveWheelSpeeds wheelSpeeds = 
+    kinematics.toWheelSpeeds(chassisSpeeds);
+
+// Normalize wheel speeds
+wheelSpeeds.desaturate(maxSpeed);
+```
+
+### Swerve Drive Kinematics
+
+```java
+import edu.wpi.first.math.kinematics.*;
+
+// Create kinematics with module positions
+Translation2d[] modulePositions = {
+    new Translation2d(0.3, 0.3),   // front left
+    new Translation2d(0.3, -0.3),  // front right
+    new Translation2d(-0.3, 0.3),  // back left
+    new Translation2d(-0.3, -0.3)  // back right
+};
+
+SwerveDriveKinematics kinematics = 
+    new SwerveDriveKinematics(modulePositions);
+
+// Convert chassis speeds to module states
+SwerveModuleState[] states = 
+    kinematics.toSwerveModuleStates(chassisSpeeds);
+
+// Desaturate wheel speeds
+SwerveDriveKinematics.desaturateWheelSpeeds(states, maxSpeed);
+```
+
+## Trajectory
+
+### Trapezoidal Motion Profile
+
+```java
+import edu.wpi.first.math.trajectory.TrapezoidProfile;
+
+// Create constraints
+TrapezoidProfile.Constraints constraints = 
+    new TrapezoidProfile.Constraints(2.0, 1.0);  // max vel, max accel
+
+// Create profile
+TrapezoidProfile.State goal = new TrapezoidProfile.State(5.0, 0.0);
+TrapezoidProfile.State initial = new TrapezoidProfile.State(0.0, 0.0);
+TrapezoidProfile profile = new TrapezoidProfile(constraints, goal, initial);
+
+// Sample profile at time t
+TrapezoidProfile.State state = profile.calculate(1.5);
+double position = state.position;
+double velocity = state.velocity;
+```
+
+### Trajectory Generation
+
+```java
+import edu.wpi.first.math.trajectory.*;
+
+// Create waypoints
+Pose2d start = new Pose2d(0, 0, new Rotation2d());
+List<Translation2d> interior = List.of(
+    new Translation2d(1.0, 1.0),
+    new Translation2d(2.0, -1.0)
+);
+Pose2d end = new Pose2d(3.0, 0, Rotation2d.fromDegrees(90));
+
+// Create config
+TrajectoryConfig config = new TrajectoryConfig(2.0, 1.0)  // max vel, max accel
+    .setKinematics(kinematics)
+    .setReversed(false);
+
+// Generate trajectory
+Trajectory trajectory = TrajectoryGenerator.generateTrajectory(
+    start, interior, end, config);
+
+// Sample trajectory
+Trajectory.State state = trajectory.sample(1.5);  // at t=1.5s
+Pose2d pose = state.poseMeters;
+double velocity = state.velocityMetersPerSecond;
+```
+
+## State Estimation
+
+### Odometry
+
+```java
+import edu.wpi.first.math.kinematics.*;
+
+// Differential drive odometry
+DifferentialDriveOdometry odometry = new DifferentialDriveOdometry(
+    gyroAngle,
+    leftDistance,
+    rightDistance,
+    initialPose
+);
+
+// Update odometry
+Pose2d pose = odometry.update(
+    gyroAngle,
+    leftDistance,
+    rightDistance
+);
+
+// Reset odometry
+odometry.resetPosition(gyroAngle, leftDistance, rightDistance, newPose);
+```
+
+### Kalman Filters
+
+```java
+import edu.wpi.first.math.estimator.*;
+
+// Differential drive pose estimator with vision
+DifferentialDrivePoseEstimator poseEstimator = 
+    new DifferentialDrivePoseEstimator(
+        kinematics,
+        gyroAngle,
+        leftDistance,
+        rightDistance,
+        initialPose
+    );
+
+// Update with encoder measurements
+poseEstimator.update(gyroAngle, leftDistance, rightDistance);
+
+// Add vision measurement
+poseEstimator.addVisionMeasurement(visionPose, timestamp);
+
+// Get estimated pose
+Pose2d estimatedPose = poseEstimator.getEstimatedPosition();
+```
+
+## Filters
+
+### Common Filters
+
+```java
+import edu.wpi.first.math.filter.*;
+
+// Linear digital filter
+LinearFilter lowPass = LinearFilter.singlePoleIIR(0.1, 0.02);  // time constant, period
+double filtered = lowPass.calculate(rawValue);
+
+// Moving average filter
+LinearFilter movingAverage = LinearFilter.movingAverage(10);  // 10 samples
+
+// Median filter
+MedianFilter medianFilter = new MedianFilter(5);  // window size
+double median = medianFilter.calculate(rawValue);
+
+// Slew rate limiter
+SlewRateLimiter limiter = new SlewRateLimiter(2.0);  // max rate of change
+double limited = limiter.calculate(input);
+
+// Debouncer
+Debouncer debouncer = new Debouncer(0.1);  // 0.1 second debounce time
+boolean debounced = debouncer.calculate(input);
+```
+
+## Utility Functions
+
+### MathUtil
+
+```java
+import edu.wpi.first.math.MathUtil;
+
+// Clamp value to range
+double clamped = MathUtil.clamp(value, -1.0, 1.0);
+
+// Apply deadband
+double deadbanded = MathUtil.applyDeadband(value, 0.1);
+
+// Interpolate between values
+double interpolated = MathUtil.interpolate(start, end, t);
+
+// Angle utilities
+double wrapped = MathUtil.angleModulus(angle);  // wrap to [-pi, pi]
+double inputModulus = MathUtil.inputModulus(value, -180, 180);
+```
+
+## Matrix Operations
+
+```java
+import edu.wpi.first.math.*;
+import edu.wpi.first.math.numbers.*;
+
+// Create matrices (using Nat for compile-time size)
+Matrix<N3, N3> mat = new Matrix<>(Nat.N3(), Nat.N3());
+mat.set(0, 0, 1.0);
+
+// Matrix operations
+Matrix<N3, N3> inverse = mat.inv();
+Matrix<N3, N3> transpose = mat.transpose();
+Matrix<N3, N3> sum = mat.plus(mat);
+
+// Vectors
+Vector<N3> vec = VecBuilder.fill(1.0, 2.0, 3.0);
+double norm = vec.norm();
+```
+
+## Source Code
+
+View the full source code on GitHub:
+- [WPIMath Java](https://github.com/wpilibsuite/allwpilib/tree/main/wpimath/src/main/java/edu/wpi/first/math)
+- [WPIMath C++](https://github.com/wpilibsuite/allwpilib/tree/main/wpimath/src/main/native/include/frc)
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card title="WPILibJ API" icon="java" href="/api/wpilibj/overview">
+    Java robot programming API
+  </Card>
+  <Card title="WPILibC API" icon="c" href="/api/wpilibc/overview">
+    C++ robot programming API
+  </Card>
+  <Card title="WPIUnits" icon="ruler" href="/api/wpiunits/overview">
+    Type-safe unit system
+  </Card>
+  <Card title="Command Framework" icon="list-check" href="/api/wpilibnewcommands/overview">
+    Command-based programming
+  </Card>
+</CardGroup>

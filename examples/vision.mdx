@@ -1,0 +1,469 @@
+---
+title: Vision Processing Examples
+description: AprilTag detection and pose estimation using WPILib vision
+---
+
+This example demonstrates AprilTag detection using a USB camera, including pose estimation and visualization on the dashboard.
+
+## AprilTag Vision Example
+
+<Tabs>
+  <Tab title="Java">
+    ```java
+    package edu.wpi.first.wpilibj.examples.apriltagsvision;
+
+    import edu.wpi.first.apriltag.AprilTagDetection;
+    import edu.wpi.first.apriltag.AprilTagDetector;
+    import edu.wpi.first.apriltag.AprilTagPoseEstimator;
+    import edu.wpi.first.cameraserver.CameraServer;
+    import edu.wpi.first.cscore.CvSink;
+    import edu.wpi.first.cscore.CvSource;
+    import edu.wpi.first.cscore.UsbCamera;
+    import edu.wpi.first.math.geometry.Rotation3d;
+    import edu.wpi.first.math.geometry.Transform3d;
+    import edu.wpi.first.networktables.IntegerArrayPublisher;
+    import edu.wpi.first.networktables.NetworkTable;
+    import edu.wpi.first.networktables.NetworkTableInstance;
+    import edu.wpi.first.wpilibj.TimedRobot;
+    import java.util.ArrayList;
+    import org.opencv.core.Mat;
+    import org.opencv.core.Point;
+    import org.opencv.core.Scalar;
+    import org.opencv.imgproc.Imgproc;
+
+    /**
+     * This is a demo program showing the detection of AprilTags. The image is acquired from the USB
+     * camera, then any detected AprilTags are marked up on the image and sent to the dashboard.
+     *
+     * Be aware that the performance on this is much worse than a coprocessor solution!
+     */
+    public class Robot extends TimedRobot {
+      public Robot() {
+        var visionThread = new Thread(this::apriltagVisionThreadProc);
+        visionThread.setDaemon(true);
+        visionThread.start();
+      }
+
+      void apriltagVisionThreadProc() {
+        var detector = new AprilTagDetector();
+        // look for tag36h11, correct 1 error bit (hamming distance 1)
+        // hamming 1 allocates 781KB, 2 allocates 27.4 MB, 3 allocates 932 MB
+        // max of 1 recommended for RoboRIO 1, while hamming 2 is feasible on the RoboRIO 2
+        detector.addFamily("tag36h11", 1);
+
+        // Set up Pose Estimator - parameters are for a Microsoft Lifecam HD-3000
+        var poseEstConfig =
+            new AprilTagPoseEstimator.Config(
+                0.1651, 699.3778103158814, 677.7161226393544, 345.6059345433618, 207.12741326228522);
+        var estimator = new AprilTagPoseEstimator(poseEstConfig);
+
+        // Get the UsbCamera from CameraServer
+        UsbCamera camera = CameraServer.startAutomaticCapture();
+        // Set the resolution
+        camera.setResolution(640, 480);
+
+        // Get a CvSink. This will capture Mats from the camera
+        CvSink cvSink = CameraServer.getVideo();
+        // Setup a CvSource. This will send images back to the Dashboard
+        CvSource outputStream = CameraServer.putVideo("Detected", 640, 480);
+
+        // Mats are very memory expensive. Lets reuse these.
+        var mat = new Mat();
+        var grayMat = new Mat();
+
+        // Instantiate once
+        ArrayList<Long> tags = new ArrayList<>();
+        var outlineColor = new Scalar(0, 255, 0);
+        var crossColor = new Scalar(0, 0, 255);
+
+        // We'll output to NT
+        NetworkTable tagsTable = NetworkTableInstance.getDefault().getTable("apriltags");
+        IntegerArrayPublisher pubTags = tagsTable.getIntegerArrayTopic("tags").publish();
+
+        while (!Thread.interrupted()) {
+          // Tell the CvSink to grab a frame from the camera and put it in the source mat.
+          if (cvSink.grabFrame(mat) == 0) {
+            // Send the output the error.
+            outputStream.notifyError(cvSink.getError());
+            continue;
+          }
+
+          Imgproc.cvtColor(mat, grayMat, Imgproc.COLOR_RGB2GRAY);
+
+          AprilTagDetection[] detections = detector.detect(grayMat);
+
+          // have not seen any tags yet
+          tags.clear();
+
+          for (AprilTagDetection detection : detections) {
+            // remember we saw this tag
+            tags.add((long) detection.getId());
+
+            // draw lines around the tag
+            for (var i = 0; i <= 3; i++) {
+              var j = (i + 1) % 4;
+              var pt1 = new Point(detection.getCornerX(i), detection.getCornerY(i));
+              var pt2 = new Point(detection.getCornerX(j), detection.getCornerY(j));
+              Imgproc.line(mat, pt1, pt2, outlineColor, 2);
+            }
+
+            // mark the center of the tag
+            var cx = detection.getCenterX();
+            var cy = detection.getCenterY();
+            var ll = 10;
+            Imgproc.line(mat, new Point(cx - ll, cy), new Point(cx + ll, cy), crossColor, 2);
+            Imgproc.line(mat, new Point(cx, cy - ll), new Point(cx, cy + ll), crossColor, 2);
+
+            // identify the tag
+            Imgproc.putText(
+                mat,
+                Integer.toString(detection.getId()),
+                new Point(cx + ll, cy),
+                Imgproc.FONT_HERSHEY_SIMPLEX,
+                1,
+                crossColor,
+                3);
+
+            // determine pose
+            Transform3d pose = estimator.estimate(detection);
+
+            // put pose into dashboard
+            Rotation3d rot = pose.getRotation();
+            tagsTable
+                .getEntry("pose_" + detection.getId())
+                .setDoubleArray(
+                    new double[] {
+                      pose.getX(), pose.getY(), pose.getZ(), rot.getX(), rot.getY(), rot.getZ()
+                    });
+          }
+
+          // put list of tags onto dashboard
+          pubTags.set(tags.stream().mapToLong(Long::longValue).toArray());
+
+          // Give the output stream a new image to display
+          outputStream.putFrame(mat);
+        }
+
+        pubTags.close();
+        detector.close();
+      }
+    }
+    ```
+  </Tab>
+  <Tab title="C++">
+    ```cpp
+    #include <cstdio>
+    #include <thread>
+    #include <vector>
+
+    #include <cameraserver/CameraServer.h>
+    #include <frc/TimedRobot.h>
+    #include <frc/apriltag/AprilTagDetection.h>
+    #include <frc/apriltag/AprilTagDetector.h>
+    #include <frc/apriltag/AprilTagPoseEstimator.h>
+    #include <networktables/IntegerArrayTopic.h>
+    #include <networktables/NetworkTableInstance.h>
+    #include <opencv2/core/core.hpp>
+    #include <opencv2/imgproc/imgproc.hpp>
+    #include <units/length.h>
+
+    /**
+     * This is a demo program showing the detection of AprilTags.
+     * The image is acquired from the USB camera, then any detected AprilTags
+     * are marked up on the image and sent to the dashboard.
+     *
+     * Be aware that the performance on this is much worse than a coprocessor solution!
+     */
+    class Robot : public frc::TimedRobot {
+     public:
+      Robot() {
+    #if defined(__linux__) || defined(_WIN32)
+        std::thread visionThread(VisionThread);
+        visionThread.detach();
+    #else
+        std::fputs("Vision only available on Linux or Windows.\n", stderr);
+    #endif
+      }
+
+    #if defined(__linux__) || defined(_WIN32)
+     private:
+      static void VisionThread() {
+        frc::AprilTagDetector detector;
+        // look for tag36h11, correct 1 error bit
+        detector.AddFamily("tag36h11", 1);
+
+        // Set up Pose Estimator - parameters are for a Microsoft Lifecam HD-3000
+        frc::AprilTagPoseEstimator::Config poseEstConfig = {
+            .tagSize = 6.5_in,
+            .fx = 699.3778103158814,
+            .fy = 677.7161226393544,
+            .cx = 345.6059345433618,
+            .cy = 207.12741326228522};
+        frc::AprilTagPoseEstimator estimator(poseEstConfig);
+
+        // Get the USB camera from CameraServer
+        cs::UsbCamera camera = frc::CameraServer::StartAutomaticCapture();
+        camera.SetResolution(640, 480);
+
+        // Get a CvSink and CvSource
+        cs::CvSink cvSink = frc::CameraServer::GetVideo();
+        cs::CvSource outputStream = frc::CameraServer::PutVideo("Detected", 640, 480);
+
+        // Mats are very memory expensive. Lets reuse this Mat.
+        cv::Mat mat;
+        cv::Mat grayMat;
+
+        std::vector<int64_t> tags;
+        cv::Scalar outlineColor{0, 255, 0};
+        cv::Scalar crossColor{0, 0, 255};
+
+        // We'll output to NT
+        auto tagsTable = nt::NetworkTableInstance::GetDefault().GetTable("apriltags");
+        auto pubTags = tagsTable->GetIntegerArrayTopic("tags").Publish();
+
+        while (true) {
+          if (cvSink.GrabFrame(mat) == 0) {
+            outputStream.NotifyError(cvSink.GetError());
+            continue;
+          }
+
+          cv::cvtColor(mat, grayMat, cv::COLOR_BGR2GRAY);
+
+          cv::Size g_size = grayMat.size();
+          frc::AprilTagDetector::Results detections =
+              detector.Detect(g_size.width, g_size.height, grayMat.data);
+
+          tags.clear();
+
+          for (const frc::AprilTagDetection* detection : detections) {
+            tags.push_back(detection->GetId());
+
+            // draw lines around the tag
+            for (int i = 0; i <= 3; i++) {
+              int j = (i + 1) % 4;
+              const frc::AprilTagDetection::Point pti = detection->GetCorner(i);
+              const frc::AprilTagDetection::Point ptj = detection->GetCorner(j);
+              line(mat, cv::Point(pti.x, pti.y), cv::Point(ptj.x, ptj.y),
+                   outlineColor, 2);
+            }
+
+            // mark the center of the tag
+            const frc::AprilTagDetection::Point c = detection->GetCenter();
+            int ll = 10;
+            line(mat, cv::Point(c.x - ll, c.y), cv::Point(c.x + ll, c.y),
+                 crossColor, 2);
+            line(mat, cv::Point(c.x, c.y - ll), cv::Point(c.x, c.y + ll),
+                 crossColor, 2);
+
+            // identify the tag
+            putText(mat, std::to_string(detection->GetId()),
+                    cv::Point(c.x + ll, c.y), cv::FONT_HERSHEY_SIMPLEX, 1,
+                    crossColor, 3);
+
+            // determine pose
+            frc::Transform3d pose = estimator.Estimate(*detection);
+
+            // put pose into NT
+            frc::Rotation3d rotation = pose.Rotation();
+            tagsTable->GetEntry(fmt::format("pose_{}", detection->GetId()))
+                .SetDoubleArray(
+                    {{ pose.X().value(),
+                       pose.Y().value(),
+                       pose.Z().value(),
+                       rotation.X().value(),
+                       rotation.Y().value(),
+                       rotation.Z().value() }});
+          }
+
+          pubTags.Set(tags);
+          outputStream.PutFrame(mat);
+        }
+      }
+    #endif
+    };
+
+    #ifndef RUNNING_FRC_TESTS
+    int main() {
+      return frc::StartRobot<Robot>();
+    }
+    #endif
+    ```
+  </Tab>
+</Tabs>
+
+## What This Example Demonstrates
+
+### AprilTag Detection
+
+AprilTags are fiducial markers (like QR codes) designed for robot localization. WPILib includes a built-in detector:
+
+```java
+var detector = new AprilTagDetector();
+detector.addFamily("tag36h11", 1);
+```
+
+**Family**: tag36h11 is the standard FRC tag family
+
+**Hamming distance**: Error correction capability
+- `1`: Recommended for RoboRIO 1 (uses 781 KB)
+- `2`: Feasible on RoboRIO 2 (uses 27.4 MB)
+- `3`: High error correction (uses 932 MB)
+
+### Camera Setup
+
+```java
+UsbCamera camera = CameraServer.startAutomaticCapture();
+camera.setResolution(640, 480);
+
+CvSink cvSink = CameraServer.getVideo();
+CvSource outputStream = CameraServer.putVideo("Detected", 640, 480);
+```
+
+- **CvSink**: Receives frames from the camera
+- **CvSource**: Sends processed frames to dashboard
+
+### Vision Threading
+
+**Important**: Vision processing runs in a separate thread to avoid blocking the main robot loop:
+
+```java
+var visionThread = new Thread(this::apriltagVisionThreadProc);
+visionThread.setDaemon(true);  // Dies when main program exits
+visionThread.start();
+```
+
+### Image Processing Pipeline
+
+1. **Grab frame from camera**
+```java
+if (cvSink.grabFrame(mat) == 0) {
+    outputStream.notifyError(cvSink.getError());
+    continue;
+}
+```
+
+2. **Convert to grayscale** (required for AprilTag detection)
+```java
+Imgproc.cvtColor(mat, grayMat, Imgproc.COLOR_RGB2GRAY);
+```
+
+3. **Detect tags**
+```java
+AprilTagDetection[] detections = detector.detect(grayMat);
+```
+
+4. **Draw visualization**
+```java
+for (AprilTagDetection detection : detections) {
+    // Draw box around tag
+    for (var i = 0; i <= 3; i++) {
+        var j = (i + 1) % 4;
+        var pt1 = new Point(detection.getCornerX(i), detection.getCornerY(i));
+        var pt2 = new Point(detection.getCornerX(j), detection.getCornerY(j));
+        Imgproc.line(mat, pt1, pt2, outlineColor, 2);
+    }
+    
+    // Draw crosshair at center
+    var cx = detection.getCenterX();
+    var cy = detection.getCenterY();
+    Imgproc.line(mat, new Point(cx - 10, cy), new Point(cx + 10, cy), crossColor, 2);
+    
+    // Label with tag ID
+    Imgproc.putText(mat, Integer.toString(detection.getId()), ...);
+}
+```
+
+5. **Send to dashboard**
+```java
+outputStream.putFrame(mat);
+```
+
+### Pose Estimation
+
+Estimate the 3D position and orientation of detected tags:
+
+```java
+var poseEstConfig = new AprilTagPoseEstimator.Config(
+    0.1651,           // Tag size in meters (6.5 inches)
+    699.3778103158814,  // fx: Focal length X
+    677.7161226393544,  // fy: Focal length Y
+    345.6059345433618,  // cx: Principal point X
+    207.12741326228522  // cy: Principal point Y
+);
+var estimator = new AprilTagPoseEstimator(poseEstConfig);
+
+Transform3d pose = estimator.estimate(detection);
+```
+
+**Camera calibration parameters** (fx, fy, cx, cy) are specific to your camera. The example uses values for a Microsoft Lifecam HD-3000.
+
+### Publishing to NetworkTables
+
+```java
+NetworkTable tagsTable = NetworkTableInstance.getDefault().getTable("apriltags");
+
+// Publish list of detected tag IDs
+IntegerArrayPublisher pubTags = tagsTable.getIntegerArrayTopic("tags").publish();
+pubTags.set(tags.stream().mapToLong(Long::longValue).toArray());
+
+// Publish individual tag poses
+Rotation3d rot = pose.getRotation();
+tagsTable.getEntry("pose_" + detection.getId())
+    .setDoubleArray(new double[] {
+        pose.getX(), pose.getY(), pose.getZ(), 
+        rot.getX(), rot.getY(), rot.getZ()
+    });
+```
+
+### Memory Management
+
+**Mats are expensive!** Reuse them instead of creating new ones each frame:
+
+```java
+var mat = new Mat();
+var grayMat = new Mat();
+
+while (!Thread.interrupted()) {
+    cvSink.grabFrame(mat);  // Reuse existing Mat
+    // ...
+}
+```
+
+## Camera Calibration
+
+For accurate pose estimation, calibrate your camera:
+
+1. Print a checkerboard pattern
+2. Capture images from various angles
+3. Use OpenCV's calibration tools or WPILib calibration utilities
+4. Extract fx, fy, cx, cy parameters
+
+## Performance Considerations
+
+**This runs on the RoboRIO!** For better performance:
+- Use a coprocessor (Raspberry Pi, NVIDIA Jetson, etc.)
+- Reduce camera resolution (e.g., 320x240)
+- Reduce frame rate
+- Use lower Hamming distance for error correction
+
+## Vision with PhotonVision
+
+For production use, consider PhotonVision:
+- Runs on coprocessor
+- Better performance
+- More features (multi-tag localization, etc.)
+- Easier calibration
+
+## Running in Simulation
+
+1. Connect a USB camera
+2. Deploy the code
+3. Open Shuffleboard or SmartDashboard
+4. Add the "Detected" camera stream
+5. Point the camera at printed AprilTags
+6. Observe detections in NetworkTables under "apriltags" table
+
+## Source Location
+
+- Java: `wpilibjExamples/src/main/java/edu/wpi/first/wpilibj/examples/apriltagsvision/Robot.java`
+- C++: `wpilibcExamples/src/main/cpp/examples/AprilTagsVision/cpp/Robot.cpp`

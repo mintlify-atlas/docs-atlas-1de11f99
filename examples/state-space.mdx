@@ -1,0 +1,373 @@
+---
+title: State-Space Control Examples
+description: Advanced control using state-space controllers and Kalman filters
+---
+
+This example demonstrates modern control theory using state-space models, Linear-Quadratic Regulators (LQR), and Kalman filters to control a single-jointed arm.
+
+## State-Space Arm Control
+
+<Tabs>
+  <Tab title="Java">
+    ```java
+    package edu.wpi.first.wpilibj.examples.statespacearm;
+
+    import edu.wpi.first.math.Nat;
+    import edu.wpi.first.math.VecBuilder;
+    import edu.wpi.first.math.controller.LinearQuadraticRegulator;
+    import edu.wpi.first.math.estimator.KalmanFilter;
+    import edu.wpi.first.math.numbers.N1;
+    import edu.wpi.first.math.numbers.N2;
+    import edu.wpi.first.math.system.LinearSystem;
+    import edu.wpi.first.math.system.LinearSystemLoop;
+    import edu.wpi.first.math.system.plant.DCMotor;
+    import edu.wpi.first.math.system.plant.LinearSystemId;
+    import edu.wpi.first.math.trajectory.TrapezoidProfile;
+    import edu.wpi.first.math.util.Units;
+    import edu.wpi.first.wpilibj.Encoder;
+    import edu.wpi.first.wpilibj.Joystick;
+    import edu.wpi.first.wpilibj.TimedRobot;
+    import edu.wpi.first.wpilibj.motorcontrol.PWMSparkMax;
+
+    public class Robot extends TimedRobot {
+      private static final int kMotorPort = 0;
+      private static final int kEncoderAChannel = 0;
+      private static final int kEncoderBChannel = 1;
+      private static final int kJoystickPort = 0;
+      private static final double kRaisedPosition = Units.degreesToRadians(90.0);
+      private static final double kLoweredPosition = Units.degreesToRadians(0.0);
+
+      // Moment of inertia of the arm, in kg * m^2. Can be estimated with CAD.
+      private static final double kArmMOI = 1.2;
+
+      // Reduction between motors and encoder, as output over input. If the arm spins slower than
+      // the motors, this number should be greater than one.
+      private static final double kArmGearing = 10.0;
+
+      private final TrapezoidProfile m_profile =
+          new TrapezoidProfile(
+              new TrapezoidProfile.Constraints(
+                  Units.degreesToRadians(45),
+                  Units.degreesToRadians(90))); // Max arm speed and acceleration.
+      private TrapezoidProfile.State m_lastProfiledReference = new TrapezoidProfile.State();
+
+      // The plant holds a state-space model of our arm. This system has the following properties:
+      //
+      // States: [position, velocity], in radians and radians per second.
+      // Inputs (what we can "put in"): [voltage], in volts.
+      // Outputs (what we can measure): [position], in radians.
+      private final LinearSystem<N2, N1, N2> m_armPlant =
+          LinearSystemId.createSingleJointedArmSystem(DCMotor.getNEO(2), kArmMOI, kArmGearing);
+
+      // The observer fuses our encoder data and voltage inputs to reject noise.
+      @SuppressWarnings("unchecked")
+      private final KalmanFilter<N2, N1, N1> m_observer =
+          new KalmanFilter<>(
+              Nat.N2(),
+              Nat.N1(),
+              (LinearSystem<N2, N1, N1>) m_armPlant.slice(0),
+              VecBuilder.fill(0.015, 0.17), // How accurate we think our model is
+              VecBuilder.fill(0.01), // How accurate we think our encoder is
+              0.020);
+
+      // A LQR uses feedback to create voltage commands.
+      @SuppressWarnings("unchecked")
+      private final LinearQuadraticRegulator<N2, N1, N1> m_controller =
+          new LinearQuadraticRegulator<>(
+              (LinearSystem<N2, N1, N1>) m_armPlant.slice(0),
+              VecBuilder.fill(Units.degreesToRadians(1.0), Units.degreesToRadians(10.0)), // qelms.
+              // Position and velocity error tolerances
+              VecBuilder.fill(12.0), // relms. Control effort (voltage) tolerance.
+              0.020); // Nominal time between loops.
+
+      // The state-space loop combines a controller, observer, feedforward and plant for easy control.
+      @SuppressWarnings("unchecked")
+      private final LinearSystemLoop<N2, N1, N1> m_loop =
+          new LinearSystemLoop<>(
+              (LinearSystem<N2, N1, N1>) m_armPlant.slice(0), m_controller, m_observer, 12.0, 0.020);
+
+      // An encoder set up to measure arm position in radians.
+      private final Encoder m_encoder = new Encoder(kEncoderAChannel, kEncoderBChannel);
+
+      private final PWMSparkMax m_motor = new PWMSparkMax(kMotorPort);
+
+      private final Joystick m_joystick = new Joystick(kJoystickPort);
+
+      public Robot() {
+        // We go 2 pi radians in 1 rotation, or 4096 counts.
+        m_encoder.setDistancePerPulse(Math.PI * 2 / 4096.0);
+      }
+
+      @Override
+      public void teleopInit() {
+        // Reset our loop to make sure it's in a known state.
+        m_loop.reset(VecBuilder.fill(m_encoder.getDistance(), m_encoder.getRate()));
+
+        // Reset our last reference to the current state.
+        m_lastProfiledReference =
+            new TrapezoidProfile.State(m_encoder.getDistance(), m_encoder.getRate());
+      }
+
+      @Override
+      public void teleopPeriodic() {
+        // Sets the target position of our arm. This is similar to setting the setpoint of a
+        // PID controller.
+        TrapezoidProfile.State goal;
+        if (m_joystick.getTrigger()) {
+          // the trigger is pressed, so we go to the high goal.
+          goal = new TrapezoidProfile.State(kRaisedPosition, 0.0);
+        } else {
+          // Otherwise, we go to the low goal
+          goal = new TrapezoidProfile.State(kLoweredPosition, 0.0);
+        }
+        // Step our TrapezoidalProfile forward 20ms and set it as our next reference
+        m_lastProfiledReference = m_profile.calculate(0.020, m_lastProfiledReference, goal);
+        m_loop.setNextR(m_lastProfiledReference.position, m_lastProfiledReference.velocity);
+        // Correct our Kalman filter's state vector estimate with encoder data.
+        m_loop.correct(VecBuilder.fill(m_encoder.getDistance()));
+
+        // Update our LQR to generate new voltage commands and use the voltages to predict the next
+        // state with out Kalman filter.
+        m_loop.predict(0.020);
+
+        // Send the new calculated voltage to the motors.
+        double nextVoltage = m_loop.getU(0);
+        m_motor.setVoltage(nextVoltage);
+      }
+    }
+    ```
+  </Tab>
+  <Tab title="C++">
+    ```cpp
+    #include <numbers>
+
+    #include <frc/Encoder.h>
+    #include <frc/TimedRobot.h>
+    #include <frc/XboxController.h>
+    #include <frc/controller/LinearQuadraticRegulator.h>
+    #include <frc/estimator/KalmanFilter.h>
+    #include <frc/motorcontrol/PWMSparkMax.h>
+    #include <frc/system/LinearSystemLoop.h>
+    #include <frc/system/plant/DCMotor.h>
+    #include <frc/system/plant/LinearSystemId.h>
+    #include <frc/trajectory/TrapezoidProfile.h>
+    #include <units/angle.h>
+    #include <units/moment_of_inertia.h>
+
+    class Robot : public frc::TimedRobot {
+      static constexpr int kMotorPort = 0;
+      static constexpr int kEncoderAChannel = 0;
+      static constexpr int kEncoderBChannel = 1;
+      static constexpr int kJoystickPort = 0;
+
+      static constexpr units::radian_t kRaisedPosition = 90_deg;
+      static constexpr units::radian_t kLoweredPosition = 0_deg;
+
+      // Moment of inertia of the arm. Can be estimated with CAD.
+      static constexpr units::kilogram_square_meter_t kArmMOI = 1.2_kg_sq_m;
+
+      // Reduction between motors and encoder
+      static constexpr double kArmGearing = 10.0;
+
+      // The plant holds a state-space model of our arm.
+      frc::LinearSystem<2, 1, 1> m_armPlant =
+          frc::LinearSystemId::SingleJointedArmSystem(frc::DCMotor::NEO(2), kArmMOI,
+                                                      kArmGearing)
+              .Slice(0);
+
+      // The observer fuses our encoder data and voltage inputs to reject noise.
+      frc::KalmanFilter<2, 1, 1> m_observer{
+          m_armPlant,
+          {0.015, 0.17},  // How accurate we think our model is
+          {0.01},         // How accurate we think our encoder is
+          20_ms};
+
+      // A LQR uses feedback to create voltage commands.
+      frc::LinearQuadraticRegulator<2, 1> m_controller{
+          m_armPlant,
+          {1.0 * 2.0 * std::numbers::pi / 360.0,
+           10.0 * 2.0 * std::numbers::pi / 360.0},
+          {12.0},
+          20_ms};
+
+      // The state-space loop combines controller, observer, and feedforward.
+      frc::LinearSystemLoop<2, 1, 1> m_loop{m_armPlant, m_controller, m_observer,
+                                            12_V, 20_ms};
+
+      frc::Encoder m_encoder{kEncoderAChannel, kEncoderBChannel};
+      frc::PWMSparkMax m_motor{kMotorPort};
+      frc::XboxController m_joystick{kJoystickPort};
+
+      frc::TrapezoidProfile<units::radians> m_profile{
+          {45_deg_per_s, 90_deg_per_s / 1_s}};
+
+      frc::TrapezoidProfile<units::radians>::State m_lastProfiledReference;
+
+     public:
+      Robot() {
+        m_encoder.SetDistancePerPulse(2.0 * std::numbers::pi / 4096.0);
+      }
+
+      void TeleopInit() override {
+        m_loop.Reset(frc::Vectord<2>{m_encoder.GetDistance(), m_encoder.GetRate()});
+
+        m_lastProfiledReference = {
+            units::radian_t{m_encoder.GetDistance()},
+            units::radians_per_second_t{m_encoder.GetRate()}};
+      }
+
+      void TeleopPeriodic() override {
+        frc::TrapezoidProfile<units::radians>::State goal;
+        if (m_joystick.GetRightBumperButton()) {
+          goal = {kRaisedPosition, 0_rad_per_s};
+        } else {
+          goal = {kLoweredPosition, 0_rad_per_s};
+        }
+        m_lastProfiledReference =
+            m_profile.Calculate(20_ms, m_lastProfiledReference, goal);
+
+        m_loop.SetNextR(frc::Vectord<2>{m_lastProfiledReference.position.value(),
+                                        m_lastProfiledReference.velocity.value()});
+
+        // Correct our Kalman filter's state vector estimate with encoder data.
+        m_loop.Correct(frc::Vectord<1>{m_encoder.GetDistance()});
+
+        // Update our LQR and predict the next state.
+        m_loop.Predict(20_ms);
+
+        // Send the new calculated voltage to the motors.
+        m_motor.SetVoltage(units::volt_t{m_loop.U(0)});
+      }
+    };
+
+    #ifndef RUNNING_FRC_TESTS
+    int main() {
+      return frc::StartRobot<Robot>();
+    }
+    #endif
+    ```
+  </Tab>
+</Tabs>
+
+## What This Example Demonstrates
+
+### State-Space Model
+
+A state-space model represents a system with:
+- **States**: Variables that describe the system (position, velocity)
+- **Inputs**: What we control (voltage)
+- **Outputs**: What we measure (encoder position)
+
+```java
+LinearSystem<N2, N1, N2> m_armPlant = 
+    LinearSystemId.createSingleJointedArmSystem(DCMotor.getNEO(2), kArmMOI, kArmGearing);
+```
+
+This creates a model for a single-jointed arm driven by 2 NEO motors.
+
+### Kalman Filter (Observer)
+
+The Kalman filter estimates the true state by combining:
+- Noisy sensor measurements
+- Physics model predictions
+
+```java
+KalmanFilter<N2, N1, N1> m_observer = new KalmanFilter<>(
+    ...,
+    VecBuilder.fill(0.015, 0.17), // Model uncertainty
+    VecBuilder.fill(0.01),         // Sensor uncertainty
+    0.020);
+```
+
+Lower values = more trust in that source.
+
+### Linear Quadratic Regulator (LQR)
+
+The LQR controller calculates optimal control inputs by balancing:
+- **State error** (how far from setpoint)
+- **Control effort** (how much voltage to use)
+
+```java
+LinearQuadraticRegulator<N2, N1, N1> m_controller = new LinearQuadraticRegulator<>(
+    m_armPlant,
+    VecBuilder.fill(Units.degreesToRadians(1.0), Units.degreesToRadians(10.0)), // Q matrix
+    VecBuilder.fill(12.0), // R matrix
+    0.020);
+```
+
+- **Q matrix**: Penalty for state error (smaller = more error tolerated)
+- **R matrix**: Penalty for control effort (smaller = more aggressive)
+
+### Linear System Loop
+
+Combines the controller, observer, and plant model:
+
+```java
+LinearSystemLoop<N2, N1, N1> m_loop = new LinearSystemLoop<>(
+    m_armPlant, m_controller, m_observer, 12.0, 0.020);
+```
+
+### Control Loop Sequence
+
+1. **Set Reference**: Tell the loop where you want to be
+```java
+m_loop.setNextR(position, velocity);
+```
+
+2. **Correct**: Update the Kalman filter with sensor measurements
+```java
+m_loop.correct(VecBuilder.fill(m_encoder.getDistance()));
+```
+
+3. **Predict**: Calculate the next control output
+```java
+m_loop.predict(0.020);
+```
+
+4. **Apply Control**: Send voltage to motors
+```java
+m_motor.setVoltage(m_loop.getU(0));
+```
+
+### Trapezoidal Motion Profile
+
+Smoothly transitions between positions with velocity and acceleration limits:
+
+```java
+TrapezoidProfile m_profile = new TrapezoidProfile(
+    new TrapezoidProfile.Constraints(
+        Units.degreesToRadians(45),  // Max velocity
+        Units.degreesToRadians(90))); // Max acceleration
+
+m_lastProfiledReference = m_profile.calculate(0.020, m_lastProfiledReference, goal);
+```
+
+This prevents jerky motion and reduces mechanical stress.
+
+## Advantages Over PID
+
+- **Optimal control**: Mathematically proven to be optimal
+- **Multi-variable**: Can control multiple outputs simultaneously
+- **Noise rejection**: Kalman filter handles noisy sensors
+- **Physics-based**: Uses actual system dynamics
+- **Feedforward**: Automatically includes feedforward terms
+
+## When to Use State-Space
+
+- Complex mechanisms (arms, elevators, turrets)
+- Systems requiring precise control
+- When you have good system models
+- Multi-input, multi-output systems
+
+## Running in Simulation
+
+1. Deploy the code
+2. Enable teleop mode
+3. Press the joystick trigger to raise the arm to 90°
+4. Release to lower to 0°
+5. Observe smooth, controlled motion
+
+## Source Location
+
+- Java: `wpilibjExamples/src/main/java/edu/wpi/first/wpilibj/examples/statespacearm/Robot.java`
+- C++: `wpilibcExamples/src/main/cpp/examples/StateSpaceArm/cpp/Robot.cpp`

@@ -1,0 +1,491 @@
+---
+title: WPIUnits API
+description: Type-safe physical unit system for robot programming
+---
+
+WPIUnits provides a type-safe system for working with physical units, preventing unit conversion errors and making code more readable.
+
+## Overview
+
+WPIUnits wraps numeric values with unit types, ensuring that:
+- Unit mismatches are caught at compile time
+- Conversions are explicit and correct
+- Physical relationships are preserved
+- Code is self-documenting
+
+<Note>
+  WPIUnits is currently available in Java. C++ uses the third-party `units` library.
+</Note>
+
+## Package Structure
+
+```java
+edu.wpi.first.units
+├── Unit<U>              // Base unit class
+├── Measure<U>           // Immutable measurement
+├── MutableMeasure<U>    // Mutable measurement
+└── Units                // Common unit definitions
+```
+
+## Core Concepts
+
+<CardGroup cols={2}>
+  <Card title="Units" icon="ruler" href="#units">
+    Unit definitions (meters, seconds, etc.)
+  </Card>
+  <Card title="Measures" icon="calculator" href="#measures">
+    Values with units (5 meters, 2 seconds)
+  </Card>
+  <Card title="Conversions" icon="arrows-rotate" href="#conversions">
+    Convert between compatible units
+  </Card>
+  <Card title="Operations" icon="function" href="#operations">
+    Mathematical operations on measurements
+  </Card>
+</CardGroup>
+
+## Basic Usage
+
+### Creating Measurements
+
+```java
+import edu.wpi.first.units.*;
+import static edu.wpi.first.units.Units.*;
+
+// Create distance measurements
+Measure<Distance> distance = Meters.of(5.0);
+Measure<Distance> distanceFeet = Feet.of(16.4);
+
+// Create time measurements
+Measure<Time> time = Seconds.of(2.5);
+Measure<Time> timeMs = Milliseconds.of(2500);
+
+// Create velocity measurements
+Measure<Velocity<Distance>> speed = MetersPerSecond.of(2.0);
+
+// Create angle measurements
+Measure<Angle> angle = Degrees.of(90);
+Measure<Angle> radians = Radians.of(Math.PI / 2);
+```
+
+### Accessing Values
+
+```java
+// Get value in specific unit
+double meters = distance.in(Meters);           // 5.0
+double feet = distance.in(Feet);               // 16.404...
+double inches = distance.in(Inches);           // 196.85...
+
+// Get base unit value
+double baseValue = distance.baseUnitMagnitude(); // in meters
+
+// Get the unit
+Unit<Distance> unit = distance.unit();
+```
+
+## Available Units
+
+### Distance
+
+```java
+import static edu.wpi.first.units.Units.*;
+
+// Metric
+Meters
+Centimeters
+Millimeters
+Kilometers
+
+// Imperial
+Feet
+Inches
+Miles
+```
+
+### Time
+
+```java
+Seconds
+Milliseconds
+Microseconds
+Minutes
+Hours
+```
+
+### Velocity
+
+```java
+MetersPerSecond
+FeetPerSecond
+InchesPerSecond
+KilometersPerHour
+MilesPerHour
+```
+
+### Acceleration
+
+```java
+MetersPerSecondPerSecond
+FeetPerSecondPerSecond
+Gs  // Standard gravity (9.80665 m/s²)
+```
+
+### Angle
+
+```java
+Degrees
+Radians
+Rotations
+```
+
+### Angular Velocity
+
+```java
+DegreesPerSecond
+RadiansPerSecond
+RotationsPerSecond
+RotationsPerMinute  // RPM
+```
+
+### Angular Acceleration
+
+```java
+RadiansPerSecondPerSecond
+DegreesPerSecondPerSecond
+RotationsPerSecondPerSecond
+```
+
+### Mass
+
+```java
+Kilograms
+Grams
+Pounds
+Ounces
+```
+
+### Force
+
+```java
+Newtons
+Pounds  // Pound-force
+```
+
+### Torque
+
+```java
+NewtonMeters
+PoundFeet
+PoundInches
+```
+
+### Energy
+
+```java
+Joules
+Kilojoules
+```
+
+### Power
+
+```java
+Watts
+Kilowatts
+Horsepower
+Milliwatts
+```
+
+### Voltage
+
+```java
+Volts
+Millivolts
+```
+
+### Current
+
+```java
+Amps
+Milliamps
+```
+
+### Resistance
+
+```java
+Ohms
+Kiloohms
+Milliohms
+```
+
+### Temperature
+
+```java
+Celsius
+Fahrenheit
+Kelvin
+```
+
+### Frequency
+
+```java
+Hertz
+Kilohertz
+Megahertz
+RPM  // Rotations per minute
+```
+
+## Conversions
+
+### Automatic Conversions
+
+```java
+// Create in feet, use in meters
+Measure<Distance> distance = Feet.of(10);
+double meters = distance.in(Meters);  // 3.048
+
+// Temperature conversions
+Measure<Temperature> temp = Celsius.of(100);
+double fahrenheit = temp.in(Fahrenheit);  // 212
+```
+
+### Unit Conversion Factors
+
+```java
+// Get conversion factor between units
+double factor = Meters.convertFrom(1.0, Feet);  // 0.3048
+```
+
+## Mathematical Operations
+
+### Arithmetic
+
+```java
+// Addition and subtraction (same dimension)
+Measure<Distance> d1 = Meters.of(5);
+Measure<Distance> d2 = Meters.of(3);
+Measure<Distance> sum = d1.plus(d2);        // 8 meters
+Measure<Distance> diff = d1.minus(d2);      // 2 meters
+
+// Multiplication by scalar
+Measure<Distance> doubled = d1.times(2);    // 10 meters
+Measure<Distance> halved = d1.div(2);       // 2.5 meters
+
+// Negation
+Measure<Distance> negative = d1.negate();   // -5 meters
+```
+
+### Derived Units
+
+```java
+// Velocity = Distance / Time
+Measure<Distance> distance = Meters.of(10);
+Measure<Time> time = Seconds.of(2);
+Measure<Velocity<Distance>> velocity = distance.per(time);  // 5 m/s
+
+// Distance = Velocity * Time
+Measure<Distance> traveled = velocity.times(time);  // 10 meters
+
+// Acceleration = Velocity / Time
+Measure<Velocity<Distance>> deltaV = MetersPerSecond.of(10);
+Measure<Time> deltaT = Seconds.of(5);
+Measure<Velocity<Velocity<Distance>>> accel = deltaV.per(deltaT);  // 2 m/s²
+```
+
+### Comparisons
+
+```java
+Measure<Distance> d1 = Meters.of(5);
+Measure<Distance> d2 = Feet.of(20);
+
+// Compare (automatically converts to common unit)
+boolean isGreater = d1.gt(d2);    // 5m > 20ft?
+boolean isLess = d1.lt(d2);       // 5m < 20ft?
+boolean isEqual = d1.isEquivalent(d2);  // 5m == 20ft?
+
+// Get minimum/maximum
+Measure<Distance> min = d1.min(d2);
+Measure<Distance> max = d1.max(d2);
+```
+
+## Mutable Measures
+
+For performance-critical code, use `MutableMeasure` to avoid allocations.
+
+```java
+import edu.wpi.first.units.MutableMeasure;
+import static edu.wpi.first.units.Units.*;
+
+// Create mutable measure
+MutableMeasure<Distance> distance = MutableMeasure.zero(Meters);
+
+// Update value (reuses same object)
+distance.mut_replace(5.0, Meters);
+distance.mut_plus(3.0, Meters);    // Now 8 meters
+distance.mut_minus(2.0, Meters);   // Now 6 meters
+distance.mut_times(2);             // Now 12 meters
+
+// Convert to immutable
+Measure<Distance> immutable = distance.copy();
+```
+
+## Custom Units
+
+### Creating Derived Units
+
+```java
+import edu.wpi.first.units.*;
+import static edu.wpi.first.units.Units.*;
+
+// Create custom derived unit
+Unit<Velocity<Distance>> customSpeed = Feet.per(Millisecond);
+
+// Use custom unit
+Measure<Velocity<Distance>> speed = customSpeed.of(100);
+```
+
+### Combining Units
+
+```java
+// Per unit
+Unit<Velocity<Distance>> metersPerSecond = Meters.per(Second);
+
+// Multiply units
+Unit<Energy> joules = Newtons.mult(Meters);  // Newton-meters
+
+// Divide units  
+Unit<Acceleration> accel = MetersPerSecond.per(Second);
+```
+
+## Integration with WPILib
+
+### Robot Code Example
+
+```java
+import edu.wpi.first.units.*;
+import static edu.wpi.first.units.Units.*;
+import edu.wpi.first.wpilibj.motorcontrol.Spark;
+
+public class Elevator {
+  private final Spark motor = new Spark(0);
+  private MutableMeasure<Distance> position = MutableMeasure.zero(Meters);
+  private Measure<Velocity<Distance>> maxSpeed = MetersPerSecond.of(2.0);
+  
+  public void setPosition(Measure<Distance> target) {
+    // Type-safe: can't accidentally pass wrong unit type
+    double error = target.minus(position).in(Meters);
+    double output = error * 0.1;
+    motor.set(output);
+  }
+  
+  public void updatePosition(Measure<Distance> delta) {
+    position.mut_plus(delta);
+  }
+  
+  public Measure<Distance> getPosition() {
+    return position.copy();
+  }
+}
+```
+
+### With Controllers
+
+```java
+import edu.wpi.first.math.controller.PIDController;
+import edu.wpi.first.units.*;
+import static edu.wpi.first.units.Units.*;
+
+public class Shooter {
+  private final PIDController controller = new PIDController(0.1, 0, 0);
+  private Measure<Velocity<Angle>> targetSpeed = RPM.of(5000);
+  
+  public void setTargetSpeed(Measure<Velocity<Angle>> speed) {
+    targetSpeed = speed;
+    controller.setSetpoint(speed.in(RPM));
+  }
+  
+  public double calculate(Measure<Velocity<Angle>> currentSpeed) {
+    return controller.calculate(currentSpeed.in(RPM));
+  }
+}
+```
+
+### With Kinematics
+
+```java
+import edu.wpi.first.math.kinematics.ChassisSpeeds;
+import edu.wpi.first.units.*;
+import static edu.wpi.first.units.Units.*;
+
+public ChassisSpeeds createChassisSpeeds(
+    Measure<Velocity<Distance>> vx,
+    Measure<Velocity<Distance>> vy,
+    Measure<Velocity<Angle>> omega) {
+  
+  return new ChassisSpeeds(
+      vx.in(MetersPerSecond),
+      vy.in(MetersPerSecond),
+      omega.in(RadiansPerSecond)
+  );
+}
+```
+
+## Common Patterns
+
+### Constants Class
+
+```java
+import edu.wpi.first.units.*;
+import static edu.wpi.first.units.Units.*;
+
+public final class Constants {
+  public static final class DriveConstants {
+    public static final Measure<Distance> TRACK_WIDTH = Inches.of(26);
+    public static final Measure<Distance> WHEEL_DIAMETER = Inches.of(6);
+    public static final Measure<Velocity<Distance>> MAX_SPEED = FeetPerSecond.of(15);
+    public static final Measure<Velocity<Velocity<Distance>>> MAX_ACCEL = 
+        FeetPerSecond.per(Second).of(10);
+  }
+  
+  public static final class ShooterConstants {
+    public static final Measure<Velocity<Angle>> SHOOTING_SPEED = RPM.of(5000);
+    public static final Measure<Velocity<Angle>> TOLERANCE = RPM.of(50);
+  }
+}
+```
+
+### Unit Testing
+
+```java
+import static org.junit.jupiter.api.Assertions.*;
+import static edu.wpi.first.units.Units.*;
+
+@Test
+void testVelocityCalculation() {
+  Measure<Distance> distance = Meters.of(10);
+  Measure<Time> time = Seconds.of(2);
+  
+  Measure<Velocity<Distance>> expected = MetersPerSecond.of(5);
+  Measure<Velocity<Distance>> actual = distance.per(time);
+  
+  assertTrue(actual.isEquivalent(expected));
+}
+```
+
+## Source Code
+
+View the full source code on GitHub:
+- [WPIUnits Java Source](https://github.com/wpilibsuite/allwpilib/tree/main/wpiunits/src/main/java/edu/wpi/first/units)
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card title="WPIMath" icon="square-root-variable" href="/api/wpimath/overview">
+    Mathematics and control libraries
+  </Card>
+  <Card title="WPILibJ" icon="java" href="/api/wpilibj/overview">
+    Java robot API using units
+  </Card>
+  <Card title="WPILibC" icon="c" href="/api/wpilibc/overview">
+    C++ robot API with units library
+  </Card>
+</CardGroup>

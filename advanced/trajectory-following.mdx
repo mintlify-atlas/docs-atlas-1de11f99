@@ -1,0 +1,384 @@
+---
+title: Trajectory Generation and Following
+description: Create and follow smooth paths for autonomous robot navigation
+---
+
+Trajectory following allows robots to execute smooth, planned paths during autonomous mode. WPILib provides tools to generate trajectories with velocity and acceleration constraints, then follow them accurately.
+
+## What is a Trajectory?
+
+A trajectory is a time-parameterized path that specifies:
+- Position at each time step
+- Velocity at each time step
+- Acceleration at each time step
+- Curvature (rate of turning)
+
+Unlike simple motion profiling, trajectories respect robot dynamics and can follow complex curves.
+
+## Trajectory Generation
+
+### Basic Trajectory Configuration
+
+```cpp
+#include <frc/trajectory/TrajectoryGenerator.h>
+#include <frc/trajectory/TrajectoryConfig.h>
+
+// Create trajectory config with constraints
+frc::TrajectoryConfig config{
+    3.0_mps,      // Max velocity
+    2.0_mps_sq    // Max acceleration
+};
+
+// Set start and end velocities (default is 0)
+config.SetStartVelocity(0_mps);
+config.SetEndVelocity(0_mps);
+
+// Mark trajectory as reversed (robot drives backwards)
+config.SetReversed(false);
+```
+
+Location: `wpimath/src/main/native/include/frc/trajectory/TrajectoryConfig.h:35`
+
+### Adding Constraints
+
+Constraints ensure trajectories respect physical limitations:
+
+```cpp
+#include <frc/trajectory/constraint/DifferentialDriveKinematicsConstraint.h>
+#include <frc/kinematics/DifferentialDriveKinematics.h>
+
+// Add differential drive constraint
+frc::DifferentialDriveKinematics kinematics{0.7_m};
+config.SetKinematics(kinematics);
+
+// Add voltage constraint
+#include <frc/trajectory/constraint/DifferentialDriveVoltageConstraint.h>
+auto voltageConstraint = 
+    frc::DifferentialDriveVoltageConstraint{
+        frc::SimpleMotorFeedforward<units::meters>{1.0_V, 3.0_V / 1_mps},
+        kinematics,
+        10_V  // Max voltage
+    };
+config.AddConstraint(voltageConstraint);
+```
+
+Location: `wpimath/src/main/native/include/frc/trajectory/TrajectoryConfig.h:78`
+
+### Generating Simple Trajectories
+
+```cpp
+#include <frc/geometry/Pose2d.h>
+#include <frc/geometry/Translation2d.h>
+
+// Define waypoints
+frc::Pose2d start{0_m, 0_m, 0_deg};
+frc::Pose2d end{3_m, 0_m, 0_deg};
+
+// Generate trajectory
+auto trajectory = frc::TrajectoryGenerator::GenerateTrajectory(
+    start,
+    {},   // No interior waypoints
+    end,
+    config
+);
+```
+
+Location: `wpimath/src/main/native/include/frc/trajectory/TrajectoryGenerator.h:57`
+
+### Complex Trajectories with Waypoints
+
+```cpp
+// Create trajectory with interior waypoints
+auto trajectory = frc::TrajectoryGenerator::GenerateTrajectory(
+    frc::Pose2d{0_m, 0_m, 0_deg},      // Start
+    {
+        frc::Translation2d{1_m, 1_m},   // Waypoint 1
+        frc::Translation2d{2_m, -1_m}   // Waypoint 2
+    },
+    frc::Pose2d{3_m, 0_m, 0_deg},      // End
+    config
+);
+```
+
+### Full Pose Control
+
+Specify exact robot heading at each waypoint:
+
+```cpp
+// Each waypoint has position AND heading
+auto trajectory = frc::TrajectoryGenerator::GenerateTrajectory(
+    {
+        frc::Pose2d{0_m, 0_m, 0_deg},
+        frc::Pose2d{1_m, 1_m, 45_deg},   // Face 45° at this point
+        frc::Pose2d{2_m, 1_m, 90_deg},   // Face 90° at this point
+        frc::Pose2d{3_m, 0_m, 0_deg}
+    },
+    config
+);
+```
+
+Location: `wpimath/src/main/native/include/frc/trajectory/TrajectoryGenerator.h:84`
+
+## Trajectory Following
+
+### Ramsete Controller (Differential Drive)
+
+Ramsete is a nonlinear controller designed for differential drivetrains:
+
+```cpp
+#include <frc/controller/RamseteController.h>
+
+// Create Ramsete controller (default parameters work well)
+frc::RamseteController ramseteController;
+
+// In autonomous periodic
+void AutonomousPeriodic() {
+    auto goal = trajectory.Sample(timer.Get());
+    
+    auto adjustedSpeeds = ramseteController.Calculate(
+        odometry.GetPose(),  // Current pose
+        goal                 // Desired state
+    );
+    
+    auto wheelSpeeds = kinematics.ToWheelSpeeds(adjustedSpeeds);
+    
+    // Use feedforward + feedback for best results
+    leftMotor.SetVoltage(
+        feedforward.Calculate(wheelSpeeds.left) +
+        leftPID.Calculate(leftEncoder.GetRate(), wheelSpeeds.left.value())
+    );
+    rightMotor.SetVoltage(
+        feedforward.Calculate(wheelSpeeds.right) +
+        rightPID.Calculate(rightEncoder.GetRate(), wheelSpeeds.right.value())
+    );
+}
+```
+
+Location: `wpimath/src/main/native/include/frc/controller/RamseteController.h:48`
+
+### Holonomic Drive Controller (Mecanum/Swerve)
+
+For omnidirectional drivetrains:
+
+```cpp
+#include <frc/controller/HolonomicDriveController.h>
+#include <frc/controller/PIDController.h>
+#include <frc/controller/ProfiledPIDController.h>
+
+// Create holonomic controller
+frc::HolonomicDriveController controller{
+    frc::PIDController{1.0, 0, 0},      // X controller
+    frc::PIDController{1.0, 0, 0},      // Y controller
+    frc::ProfiledPIDController<units::radians>{
+        1.0, 0, 0,
+        frc::TrapezoidProfile<units::radians>::Constraints{
+            6.28_rad_per_s,
+            3.14_rad_per_s / 1_s
+        }
+    }  // Rotation controller
+};
+
+// In autonomous
+auto goal = trajectory.Sample(timer.Get());
+auto adjustedSpeeds = controller.Calculate(
+    odometry.GetPose(),
+    goal,
+    goal.velocity,
+    goal.pose.Rotation()
+);
+
+auto wheelSpeeds = kinematics.ToWheelSpeeds(adjustedSpeeds);
+```
+
+## Complete Trajectory Following Example
+
+```cpp
+class Robot : public frc::TimedRobot {
+public:
+    void AutonomousInit() override {
+        // Generate trajectory
+        frc::TrajectoryConfig config{3.0_mps, 2.0_mps_sq};
+        config.SetKinematics(kinematics);
+        
+        trajectory = frc::TrajectoryGenerator::GenerateTrajectory(
+            frc::Pose2d{0_m, 0_m, 0_deg},
+            {
+                frc::Translation2d{1_m, 1_m},
+                frc::Translation2d{2_m, -1_m}
+            },
+            frc::Pose2d{3_m, 0_m, 0_deg},
+            config
+        );
+        
+        // Reset odometry to starting pose
+        odometry.ResetPosition(
+            gyro.GetRotation2d(),
+            leftEncoder.GetDistance(),
+            rightEncoder.GetDistance(),
+            trajectory.InitialPose()
+        );
+        
+        timer.Reset();
+        timer.Start();
+    }
+    
+    void AutonomousPeriodic() override {
+        // Update odometry
+        auto pose = odometry.Update(
+            gyro.GetRotation2d(),
+            leftEncoder.GetDistance(),
+            rightEncoder.GetDistance()
+        );
+        
+        if (timer.Get() < trajectory.TotalTime()) {
+            // Sample trajectory at current time
+            auto goal = trajectory.Sample(timer.Get());
+            
+            // Calculate chassis speeds
+            auto adjustedSpeeds = ramseteController.Calculate(pose, goal);
+            
+            // Convert to wheel speeds
+            auto wheelSpeeds = kinematics.ToWheelSpeeds(adjustedSpeeds);
+            
+            // Apply feedforward + feedback control
+            leftMotor.SetVoltage(
+                feedforward.Calculate(wheelSpeeds.left) +
+                leftPID.Calculate(
+                    leftEncoder.GetRate(),
+                    wheelSpeeds.left.value()
+                )
+            );
+            rightMotor.SetVoltage(
+                feedforward.Calculate(wheelSpeeds.right) +
+                rightPID.Calculate(
+                    rightEncoder.GetRate(),
+                    wheelSpeeds.right.value()
+                )
+            );
+        } else {
+            // Trajectory complete - stop
+            leftMotor.Set(0);
+            rightMotor.Set(0);
+        }
+    }
+    
+private:
+    frc::DifferentialDriveKinematics kinematics{0.7_m};
+    frc::DifferentialDriveOdometry odometry{/* ... */};
+    frc::RamseteController ramseteController;
+    frc::SimpleMotorFeedforward<units::meters> feedforward{
+        1.0_V, 3.0_V / 1_mps
+    };
+    frc::PIDController leftPID{1.0, 0, 0};
+    frc::PIDController rightPID{1.0, 0, 0};
+    frc::Trajectory trajectory;
+    frc::Timer timer;
+};
+```
+
+## Trajectory Constraints
+
+WPILib provides several constraint types:
+
+### Centripetal Acceleration Constraint
+
+Limits acceleration during turns:
+
+```cpp
+#include <frc/trajectory/constraint/CentripetalAccelerationConstraint.h>
+
+config.AddConstraint(
+    frc::CentripetalAccelerationConstraint{3.0_mps_sq}
+);
+```
+
+### Rectangular Region Constraint
+
+Limits speed within a region:
+
+```cpp
+#include <frc/trajectory/constraint/RectangularRegionConstraint.h>
+
+config.AddConstraint(
+    frc::RectangularRegionConstraint{
+        frc::Translation2d{1_m, 1_m},    // Bottom left
+        frc::Translation2d{2_m, 2_m},    // Top right
+        frc::MaxVelocityConstraint{1_mps} // Max speed in region
+    }
+);
+```
+
+### Max Velocity Constraint
+
+Simple velocity limit:
+
+```cpp
+#include <frc/trajectory/constraint/MaxVelocityConstraint.h>
+
+config.AddConstraint(
+    frc::MaxVelocityConstraint{2.0_mps}
+);
+```
+
+## Loading and Saving Trajectories
+
+Save trajectories to disk for faster deployment:
+
+```cpp
+#include <frc/trajectory/TrajectoryUtil.h>
+
+// Save trajectory
+frc::TrajectoryUtil::ToPathweaverJson(trajectory, "/home/lvuser/path.json");
+
+// Load trajectory
+auto loaded = frc::TrajectoryUtil::FromPathweaverJson(
+    "/home/lvuser/path.json"
+);
+```
+
+## Best Practices
+
+1. **Test Trajectories in Simulation**: Verify paths before running on real robot
+2. **Use Feedforward + Feedback**: Combine feedforward for velocity tracking with PID for error correction
+3. **Characterize Your Robot**: Use SysId to get accurate feedforward constants
+4. **Add Appropriate Constraints**: Ensure trajectories respect robot physical limits
+5. **Reset Odometry**: Always reset to trajectory starting pose before following
+6. **Monitor Performance**: Log pose error during trajectory following
+
+## Visualization
+
+Visualize trajectories using Glass or AdvantageScope:
+
+```cpp
+#include <frc/smartdashboard/Field2d.h>
+
+frc::Field2d field;
+
+void RobotInit() {
+    frc::SmartDashboard::PutData("Field", &field);
+}
+
+void AutonomousInit() {
+    field.GetObject("trajectory")->SetTrajectory(trajectory);
+}
+
+void AutonomousPeriodic() {
+    field.SetRobotPose(odometry.GetPose());
+}
+```
+
+## Common Issues
+
+**Robot Doesn't Follow Path**
+- Check odometry is accurate
+- Verify feedforward constants
+- Ensure constraints aren't too restrictive
+
+**Oscillation During Following**
+- Reduce PID gains
+- Increase feedforward accuracy
+- Check for mechanical issues
+
+**Path Too Slow/Fast**
+- Adjust max velocity/acceleration in config
+- Verify motor characterization

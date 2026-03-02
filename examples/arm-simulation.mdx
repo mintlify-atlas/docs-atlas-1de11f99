@@ -1,0 +1,363 @@
+---
+title: Arm Simulation Example
+description: Simulate a single-jointed arm with PID control and Mechanism2d visualization
+---
+
+This example demonstrates how to simulate a robotic arm mechanism with physics-based simulation, PID control, and visual feedback using Mechanism2d.
+
+## Main Robot Class
+
+<Tabs>
+  <Tab title="Java">
+    ```java
+    package edu.wpi.first.wpilibj.examples.armsimulation;
+
+    import edu.wpi.first.wpilibj.Joystick;
+    import edu.wpi.first.wpilibj.TimedRobot;
+    import edu.wpi.first.wpilibj.examples.armsimulation.subsystems.Arm;
+
+    public class Robot extends TimedRobot {
+      private final Arm m_arm = new Arm();
+      private final Joystick m_joystick = new Joystick(Constants.kJoystickPort);
+
+      @Override
+      public void simulationPeriodic() {
+        m_arm.simulationPeriodic();
+      }
+
+      @Override
+      public void teleopInit() {
+        m_arm.loadPreferences();
+      }
+
+      @Override
+      public void teleopPeriodic() {
+        if (m_joystick.getTrigger()) {
+          // Here, we run PID control like normal.
+          m_arm.reachSetpoint();
+        } else {
+          // Otherwise, we disable the motor.
+          m_arm.stop();
+        }
+      }
+
+      @Override
+      public void disabledInit() {
+        // This just makes sure that our simulation code knows that the motor's off.
+        m_arm.stop();
+      }
+    }
+    ```
+  </Tab>
+  <Tab title="C++">
+    ```cpp
+    #include "Robot.h"
+
+    void Robot::SimulationPeriodic() {
+      m_arm.SimulationPeriodic();
+    }
+
+    void Robot::TeleopInit() {
+      m_arm.LoadPreferences();
+    }
+
+    void Robot::TeleopPeriodic() {
+      if (m_joystick.GetTrigger()) {
+        // Here, we run PID control like normal.
+        m_arm.ReachSetpoint();
+      } else {
+        // Otherwise, we disable the motor.
+        m_arm.Stop();
+      }
+    }
+
+    void Robot::DisabledInit() {
+      // This just makes sure that our simulation code knows that the motor's off.
+      m_arm.Stop();
+    }
+
+    #ifndef RUNNING_FRC_TESTS
+    int main() {
+      return frc::StartRobot<Robot>();
+    }
+    #endif
+    ```
+  </Tab>
+</Tabs>
+
+## Arm Subsystem (Partial)
+
+<Tabs>
+  <Tab title="Java">
+    ```java
+    package edu.wpi.first.wpilibj.examples.armsimulation.subsystems;
+
+    import edu.wpi.first.math.controller.PIDController;
+    import edu.wpi.first.math.system.plant.DCMotor;
+    import edu.wpi.first.math.util.Units;
+    import edu.wpi.first.wpilibj.Encoder;
+    import edu.wpi.first.wpilibj.RobotController;
+    import edu.wpi.first.wpilibj.motorcontrol.PWMSparkMax;
+    import edu.wpi.first.wpilibj.simulation.BatterySim;
+    import edu.wpi.first.wpilibj.simulation.EncoderSim;
+    import edu.wpi.first.wpilibj.simulation.RoboRioSim;
+    import edu.wpi.first.wpilibj.simulation.SingleJointedArmSim;
+    import edu.wpi.first.wpilibj.smartdashboard.Mechanism2d;
+    import edu.wpi.first.wpilibj.smartdashboard.MechanismLigament2d;
+    import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
+    import edu.wpi.first.wpilibj.util.Color8Bit;
+
+    public class Arm implements AutoCloseable {
+      // The arm gearbox represents a gearbox containing two Vex 775pro motors.
+      private final DCMotor m_armGearbox = DCMotor.getVex775Pro(2);
+
+      // Standard classes for controlling our arm
+      private final PIDController m_controller = new PIDController(kDefaultArmKp, 0, 0);
+      private final Encoder m_encoder = new Encoder(kEncoderAChannel, kEncoderBChannel);
+      private final PWMSparkMax m_motor = new PWMSparkMax(kMotorPort);
+
+      // Simulation classes help us simulate what's going on, including gravity.
+      // This arm sim represents an arm that can travel from -75 degrees (rotated down front)
+      // to 255 degrees (rotated down in the back).
+      private final SingleJointedArmSim m_armSim =
+          new SingleJointedArmSim(
+              m_armGearbox,
+              kArmReduction,
+              SingleJointedArmSim.estimateMOI(kArmLength, kArmMass),
+              kArmLength,
+              kMinAngleRads,
+              kMaxAngleRads,
+              true,
+              0,
+              kArmEncoderDistPerPulse,
+              0.0);
+      private final EncoderSim m_encoderSim = new EncoderSim(m_encoder);
+
+      // Create a Mechanism2d display of an Arm
+      private final Mechanism2d m_mech2d = new Mechanism2d(60, 60);
+      private final MechanismRoot2d m_armPivot = m_mech2d.getRoot("ArmPivot", 30, 30);
+      private final MechanismLigament2d m_armTower =
+          m_armPivot.append(new MechanismLigament2d("ArmTower", 30, -90));
+      private final MechanismLigament2d m_arm =
+          m_armPivot.append(
+              new MechanismLigament2d(
+                  "Arm",
+                  30,
+                  Units.radiansToDegrees(m_armSim.getAngleRads()),
+                  6,
+                  new Color8Bit(Color.kYellow)));
+
+      public Arm() {
+        m_encoder.setDistancePerPulse(kArmEncoderDistPerPulse);
+
+        // Put Mechanism 2d to SmartDashboard
+        SmartDashboard.putData("Arm Sim", m_mech2d);
+        m_armTower.setColor(new Color8Bit(Color.kBlue));
+      }
+
+      /** Update the simulation model. */
+      public void simulationPeriodic() {
+        // In this method, we update our simulation of what our arm is doing
+        // First, we set our "inputs" (voltages)
+        m_armSim.setInput(m_motor.get() * RobotController.getBatteryVoltage());
+
+        // Next, we update it. The standard loop time is 20ms.
+        m_armSim.update(0.020);
+
+        // Finally, we set our simulated encoder's readings and simulated battery voltage
+        m_encoderSim.setDistance(m_armSim.getAngleRads());
+        // SimBattery estimates loaded battery voltages
+        RoboRioSim.setVInVoltage(
+            BatterySim.calculateDefaultBatteryLoadedVoltage(m_armSim.getCurrentDrawAmps()));
+
+        // Update the Mechanism Arm angle based on the simulated arm angle
+        m_arm.setAngle(Units.radiansToDegrees(m_armSim.getAngleRads()));
+      }
+
+      /** Run the control loop to reach and maintain the setpoint. */
+      public void reachSetpoint() {
+        var pidOutput =
+            m_controller.calculate(
+                m_encoder.getDistance(), Units.degreesToRadians(m_armSetpointDegrees));
+        m_motor.setVoltage(pidOutput);
+      }
+
+      public void stop() {
+        m_motor.set(0.0);
+      }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## What This Example Demonstrates
+
+### SingleJointedArmSim
+
+Simulates a rotating arm with realistic physics:
+
+```java
+SingleJointedArmSim m_armSim = new SingleJointedArmSim(
+    m_armGearbox,              // DCMotor gearbox (2x Vex 775 Pro)
+    kArmReduction,             // Gear reduction (200:1)
+    SingleJointedArmSim.estimateMOI(kArmLength, kArmMass),  // Moment of inertia
+    kArmLength,                // Arm length in meters
+    kMinAngleRads,             // Minimum angle (-75°)
+    kMaxAngleRads,             // Maximum angle (255°)
+    true,                      // Simulate gravity
+    0,                         // Starting angle
+    kArmEncoderDistPerPulse,   // Encoder resolution
+    0.0);                      // Measurement noise std dev
+```
+
+**Key Parameters:**
+- **Moment of Inertia (MOI)**: Resistance to rotation. Estimate with CAD or use `estimateMOI(length, mass)`
+- **Gravity**: When `true`, the arm will fall if not powered
+- **Angle Limits**: Prevent the arm from rotating past physical constraints
+
+### Simulation Update Loop
+
+Called every 20ms in `simulationPeriodic()`:
+
+```java
+// 1. Set motor voltage as input
+m_armSim.setInput(m_motor.get() * RobotController.getBatteryVoltage());
+
+// 2. Update physics simulation (20ms timestep)
+m_armSim.update(0.020);
+
+// 3. Update simulated sensors
+m_encoderSim.setDistance(m_armSim.getAngleRads());
+
+// 4. Simulate battery voltage sag under load
+RoboRioSim.setVInVoltage(
+    BatterySim.calculateDefaultBatteryLoadedVoltage(m_armSim.getCurrentDrawAmps()));
+
+// 5. Update visualization
+m_arm.setAngle(Units.radiansToDegrees(m_armSim.getAngleRads()));
+```
+
+### Mechanism2d Visualization
+
+Provides a 2D visualization of the arm mechanism:
+
+```java
+Mechanism2d m_mech2d = new Mechanism2d(60, 60);  // 60x60 canvas
+MechanismRoot2d m_armPivot = m_mech2d.getRoot("ArmPivot", 30, 30);  // Pivot at center
+
+// Fixed tower (base)
+MechanismLigament2d m_armTower = 
+    m_armPivot.append(new MechanismLigament2d("ArmTower", 30, -90));
+
+// Moving arm
+MechanismLigament2d m_arm = 
+    m_armPivot.append(new MechanismLigament2d(
+        "Arm", 
+        30,                                                  // Length
+        Units.radiansToDegrees(m_armSim.getAngleRads()),   // Angle
+        6,                                                  // Line width
+        new Color8Bit(Color.kYellow)));                     // Color
+```
+
+Update the arm angle in simulation:
+```java
+m_arm.setAngle(Units.radiansToDegrees(m_armSim.getAngleRads()));
+```
+
+### PID Control
+
+Controls the arm to reach a setpoint:
+
+```java
+PIDController m_controller = new PIDController(kP, 0, 0);
+
+double pidOutput = m_controller.calculate(
+    m_encoder.getDistance(),                    // Current position
+    Units.degreesToRadians(m_armSetpointDegrees)); // Desired position
+
+m_motor.setVoltage(pidOutput);
+```
+
+### Battery Simulation
+
+Simulates realistic voltage drop under load:
+
+```java
+BatterySim.calculateDefaultBatteryLoadedVoltage(currentDrawAmps);
+```
+
+This helps identify if your mechanism draws too much current, causing brownouts.
+
+### Constants
+
+Example physical parameters:
+
+```java
+public static final double kArmReduction = 200;      // Gear ratio
+public static final double kArmMass = 8.0;           // Kilograms
+public static final double kArmLength = Units.inchesToMeters(30);  // 30 inches
+public static final double kMinAngleRads = Units.degreesToRadians(-75);
+public static final double kMaxAngleRads = Units.degreesToRadians(255);
+```
+
+## Moment of Inertia (MOI)
+
+MOI describes how hard it is to rotate the arm. For a simple arm:
+
+```java
+// WPILib provides an estimation method
+double moi = SingleJointedArmSim.estimateMOI(length, mass);
+
+// Or calculate manually for a point mass:
+// MOI = mass * length^2
+```
+
+For complex arms with multiple components, use CAD software to calculate MOI.
+
+## Preferences for Tuning
+
+Load PID gains from preferences for easy tuning:
+
+```java
+public void loadPreferences() {
+  m_armSetpointDegrees = Preferences.getDouble(kArmPositionKey, m_armSetpointDegrees);
+  if (m_armKp != Preferences.getDouble(kArmPKey, m_armKp)) {
+    m_armKp = Preferences.getDouble(kArmPKey, m_armKp);
+    m_controller.setP(m_armKp);
+  }
+}
+```
+
+Change values in NetworkTables while the robot is running to tune without redeploying.
+
+## Running in Simulation
+
+1. Run the robot simulation
+2. Open Glass or Shuffleboard
+3. Add the "Arm Sim" Mechanism2d widget
+4. Enable teleoperated mode
+5. Press the joystick trigger:
+   - Arm moves to setpoint position
+   - Watch the visualization update in real-time
+6. Release trigger:
+   - Motor stops, arm may fall due to gravity
+
+## What to Observe
+
+- **Gravity effect**: When motor is off, arm falls
+- **PID control**: Arm reaches and holds setpoint when trigger is pressed
+- **Voltage sag**: Battery voltage drops when motor draws current
+- **Smooth motion**: Arm accelerates and decelerates smoothly
+
+## Advantages of Simulation
+
+- **Test without hardware**: Develop and test code before the robot is built
+- **Tune PID gains**: Find good starting values before deploying to real hardware
+- **Verify limits**: Ensure software stops work within mechanical limits
+- **Current draw analysis**: Check if motors draw too much current
+- **Visualization**: See the mechanism move without physical robot
+
+## Source Location
+
+- Java: `wpilibjExamples/src/main/java/edu/wpi/first/wpilibj/examples/armsimulation/`
+- C++: `wpilibcExamples/src/main/cpp/examples/ArmSimulation/`
